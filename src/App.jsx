@@ -13,7 +13,7 @@ function hashPw(pw) { let h = 5381; for (let i = 0; i < pw.length; i++) h = ((h 
 function seedUsers() { return [{ id: 'u-owner', name: 'Owner', email: 'owner@diplomacha.com', pwHash: hashPw('123456'), role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', created: todayStr() }] }
 function loadUsers() { try { const d = JSON.parse(localStorage.getItem(USERS_KEY)); if (Array.isArray(d) && d.length) return d } catch { /* fall through to seed */ } const s = seedUsers(); try { localStorage.setItem(USERS_KEY, JSON.stringify(s)) } catch { /* ignore */ } return s }
 function loadSession() { try { return localStorage.getItem(SESSION_KEY) || '' } catch { return '' } }
-const VERSION = 'v1.6.2 — Bponi Parity'
+const VERSION = 'v1.6.3 — Bponi Parity'
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
 const dhakaLong = (d = new Date()) => d.toLocaleDateString('bn-BD', { timeZone: 'Asia/Dhaka', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const realPhone = (phone) => (phone && phone !== '01900-000000' ? phone : '')
@@ -462,15 +462,17 @@ export default function App() {
   const lastOrderObj = data.orders.find((o) => o.id === lastOrder)
   const kdsOrders = data.orders.filter((o) => ['new', 'confirmed', 'ready'].includes(o.status))
 
-  const PAGE_PERM = { menu: 'menu', tables: 'tables', scan: 'menu', orders: 'order', pos: 'pos', kitchen: 'kitchen', delivery: 'order', catering: 'order', members: 'order', reviews: 'order', bookings: 'order', reports: 'reports', analytics: 'reports', expenses: 'reports', dayclose: 'pos', staff: 'staff', leave: 'staff', stock: 'menu', offers: 'pos', settings: null, bazar: 'reports', vendors: 'reports', shift: 'pos', due: 'pos', voice: 'order', branches: null, growth: 'reports', sop: null, salary: 'staff' }
+  const PAGE_PERM = { menu: 'menu', tables: 'tables', scan: 'menu', orders: 'order', pos: 'pos', kitchen: 'kitchen', delivery: 'order', catering: 'order', members: 'order', reviews: 'order', bookings: 'order', money: 'reports', reports: 'reports', analytics: 'reports', expenses: 'reports', dayclose: 'pos', staff: 'staff', leave: 'staff', stock: 'menu', offers: 'pos', settings: null, bazar: 'reports', vendors: 'reports', shift: 'pos', due: 'pos', voice: 'order', branches: null, growth: 'reports', sop: null, salary: 'staff', alltools: null }
+  // Sidebar — exactly the screenshot's menu (CafePilot SIDEBAR, same groups, order and labels).
+  // Screenshot items first in each group; Diploma extras kept after them inside the matching group.
   const NAV_GROUPS = [
-    { key: 'menu', label: '🍵 মেনু ও টেবিল', items: [['menu', '🍵 মেনু'], ['tables', '🪑 টেবিল + QR'], ['scan', '📸 মেনু স্ক্যান']] },
-    { key: 'sell', label: '🛒 বিক্রি', items: [['orders', '🧾 অর্ডার'], ['pos', '💰 POS + বিল'], ['kitchen', '👨‍🍳 কিচেন (KDS)'], ['voice', '🎙️ ভয়েস অর্ডার'], ['delivery', '🛵 ডেলিভারি'], ['catering', '🎉 ক্যাটারিং']] },
-    { key: 'customer', label: '👥 কাস্টমার', items: [['customer', '🛒 কাস্টমার মেনু'], ['members', '⭐ মেম্বার / পয়েন্ট'], ['reviews', '💬 রিভিউ'], ['bookings', '📅 বুকিং']] },
-    { key: 'money', label: '💵 টাকা ও হিসাব', items: [['reports', '📈 রিপোর্ট'], ['analytics', '📊 অ্যানালিটিক্স'], ['expenses', '💸 খরচ'], ['bazar', '🛒 বাজার / কেনা'], ['vendors', '🏪 ভেন্ডর'], ['shift', '💵 ক্যাশ ড্রয়ার / শিফট'], ['due', '📒 বাকি (Due)'], ['dayclose', '🌙 দিনের হিসাব বন্ধ']] },
-    { key: 'manage', label: '⚙️ পরিচালনা', items: [['staff', '👥 স্টাফ'], ['salary', '💰 বেতন'], ['leave', '🏖️ স্টাফ ছুটি'], ['stock', '📦 স্টক'], ['offers', '🎟️ অফার / কুপন']] },
-    { key: 'tools', label: '📈 আরও টুল', items: [['growth', '📈 সেলস গ্রোথ'], ['sop', '📋 SOP — কাজের নিয়ম']] },
-    { key: 'settings', label: '🔧 সেটিংস', items: [['settings', '⚙️ সেটিংস'], ['branches', '🏬 শাখা']] },
+    { key: 'menu', label: 'মেনু ও টেবিল', items: [['menu', '🍽️ মেনু'], ['tables', '🪑 টেবিল ও QR'], ['scan', '📸 মেনু স্ক্যান']] },
+    { key: 'sell', label: 'বিক্রি', items: [['orders', '🧾 অর্ডার'], ['pos', '💰 POS / বিল'], ['kitchen', '👨‍🍳 কিচেন ডিসপ্লে'], ['voice', '🎙️ ভয়েস অর্ডার']] },
+    { key: 'customer', label: 'কাস্টমার', items: [['members', '👤 মেম্বার ও পয়েন্ট'], ['reviews', '⭐ রিভিউ ও গাইড'], ['customer', '🛒 কাস্টমার মেনু'], ['bookings', '📅 বুকিং']] },
+    { key: 'money', label: 'টাকা ও হিসাব', items: [['money', '💵 টাকা ও হিসাব'], ['reports', '📈 রিপোর্ট ও অ্যানালিটিকস'], ['offers', '🎁 অফার ও কুপন'], ['analytics', '📊 অ্যানালিটিকস'], ['expenses', '💸 খরচ'], ['vendors', '🏪 ভেন্ডর'], ['shift', '💵 ক্যাশ ড্রয়ার / শিফট'], ['due', '📒 বাকি (Due)'], ['dayclose', '🌙 দিনের হিসাব বন্ধ']] },
+    { key: 'manage', label: 'পরিচালনা', items: [['staff', '👥 স্টাফ ও HR'], ['bazar', '🥬 বাজার ও স্টক'], ['delivery', '🛵 হোম ডেলিভারি'], ['catering', '🍱 ক্যাটারিং'], ['stock', '📦 স্টক'], ['salary', '💰 বেতন'], ['leave', '🏖️ স্টাফ ছুটি']] },
+    { key: 'tools', label: 'আরও টুল', items: [['growth', '📣 বিক্রি বাড়ান'], ['alltools', '🧰 সব টুল'], ['sop', '📋 SOP — কাজের নিয়ম']] },
+    { key: 'settings', label: 'সেটিংস', items: [['settings', '⚙️ সেটিংস'], ['branches', '🏬 শাখা']] },
   ]
   const toggleGroup = (k) => setOpenGroups((g) => ({ ...g, [k]: !g[k] }))
 
@@ -829,6 +831,7 @@ export default function App() {
           {view === 'reviews' && <section>
             <h2>💬 রিভিউ</h2>
             <p>কাস্টমার অর্ডার ট্র্যাকার থেকে রিভিউ দেয় (পরিবেশন / বিল পেইড হওয়ার পর)। মালিক এখান থেকে উত্তর দিতে পারে।</p>
+            <p className="note">📖 গাইড: ভালো রিভিউ পেতে বিল দেওয়ার সময় কাস্টমারকে ট্র্যাকার থেকে রিভিউ দিতে বলুন; খারাপ রিভিউ এলে এখান থেকে ভদ্রভাবে উত্তর দিন, আর পরের বার সেবা ঠিক করুন।</p>
             {data.reviews.map((r) => <div key={r.id} className="box"><b>{r.name}</b> • {'⭐'.repeat(r.stars)} • {r.date} • {r.table} • অর্ডার {r.orderId}<p>{r.comment || '—'}</p>
               {r.reply ? <p className="note">💬 মালিকের উত্তর: {r.reply}</p> : isOwner() && <div className="menu-form"><input placeholder="উত্তর লিখুন" value={replyText[r.id] || ''} onChange={(e) => setReplyText({ ...replyText, [r.id]: e.target.value })} /><button onClick={() => { if (!replyText[r.id]) return; upd((d) => { const x = d.reviews.find((y) => y.id === r.id); if (x) x.reply = replyText[r.id]; return d }); setReplyText({ ...replyText, [r.id]: '' }) }}>💬 উত্তর দিন</button></div>}
             </div>)}
@@ -848,6 +851,20 @@ export default function App() {
             </div>
             {data.bookings.map((b) => <div key={b.id} className="box"><b>{b.name}</b> • {b.date} {b.time} • {b.table} • {bnNum(b.guests)} জন • {b.phone} <button onClick={() => { if (confirm('বুকিং মুছবেন?')) upd((d) => { d.bookings = d.bookings.filter((x) => x.id !== b.id); return d }) }}>🗑️</button></div>)}
             {!data.bookings.length && <p>কোনো বুকিং নেই।</p>}
+          </section>}
+
+          {view === 'money' && <section>
+            <h2>💵 টাকা ও হিসাব</h2>
+            <p>আজকের টাকার হিসাব এক নজরে — বিক্রি, খরচ, বাজার, বাকি আর শিফট।</p>
+            <div className="cards">
+              <div className="card"><b>{tk(todaySale)}</b><span>আজকের বিক্রি</span></div>
+              <div className="card"><b>{tk(data.bills.filter((b) => b.date === todayStr() && b.payment === 'Cash').reduce((s, b) => s + b.total, 0))}</b><span>আজ Cash বিল</span></div>
+              <div className="card"><b>{tk(data.expenses.filter((e) => e.date === todayStr()).reduce((s, e) => s + Number(e.amount || 0), 0))}</b><span>আজকের খরচ</span></div>
+              <div className="card"><b>{tk(monthBazarTotal)}</b><span>এই মাসের বাজার</span></div>
+              <div className="card"><b>{tk(totalDueOutstanding)}</b><span>মোট বাকি (Due)</span></div>
+              <div className="card"><b>{openShift ? '🟢 খোলা' : '🔴 বন্ধ'}</b><span>ক্যাশ ড্রয়ার / শিফট{openShift ? ` — শুরু ${tk(openShift.startingCash)}` : ''}</span></div>
+            </div>
+            <div className="row"><button onClick={() => setView('reports')}>📈 রিপোর্ট দেখুন</button><button onClick={() => setView('expenses')}>💸 খরচ</button><button onClick={() => setView('bazar')}>🥬 বাজার</button><button onClick={() => setView('due')}>📒 বাকি</button><button onClick={() => setView('shift')}>💵 শিফট</button><button onClick={() => setView('dayclose')}>🌙 দিনের হিসাব বন্ধ</button></div>
           </section>}
 
           {view === 'reports' && <section>
@@ -989,6 +1006,7 @@ export default function App() {
 {view === 'bazar' && <section>
             <h2>🛒 বাজার / কেনাকাটা</h2>
             <p>দোকানের জন্য যা কেনা হয় (দুধ, চিনি, চা-পাতা, কাপ…) এখানে লিখুন। এটা <b>খরচের পাতা থেকে আলাদা</b> — বাজার শুধু কেনাকাটার হিসাব।</p>
+            <div className="row"><button onClick={() => setView('stock')}>📦 স্টক দেখুন — কোন আইটেম কত আছে</button></div>
             <div className="menu-form">
               <input placeholder="আইটেমের নাম, যেমন দুধ" value={newBazar.item} onChange={(e) => setNewBazar({ ...newBazar, item: e.target.value })} />
               <input type="number" min="1" placeholder="পরিমাণ" value={newBazar.qty} onChange={(e) => setNewBazar({ ...newBazar, qty: Number(e.target.value) || 1 })} />
@@ -1108,6 +1126,14 @@ export default function App() {
             <p>এই মাসে মোট বেতন: <b>{tk((data.salaries || []).filter((x) => x.month === monthKey).reduce((s, x) => s + Number(x.amount || 0), 0))}</b> • দেওয়া হয়েছে: <b>{tk((data.salaries || []).filter((x) => x.month === monthKey && x.paid).reduce((s, x) => s + Number(x.amount || 0), 0))}</b> • বাকি: <b>{tk((data.salaries || []).filter((x) => x.month === monthKey && !x.paid).reduce((s, x) => s + Number(x.amount || 0), 0))}</b></p>
           </section>}
 
+
+          {view === 'alltools' && <section>
+            <h2>🧰 সব টুল</h2>
+            <p>সিস্টেমের সব পাতা এক জায়গায় — যেটা দরকার চাপুন।</p>
+            <div className="grid2">
+              {[['dashboard', '📊 ড্যাশবোর্ড'], ...NAV_GROUPS.flatMap((g) => g.items)].filter(([k]) => k === 'dashboard' || canView(PAGE_PERM[k])).map(([k, l]) => <button key={k} className="box" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => setView(k)}><b>{l}</b></button>)}
+            </div>
+          </section>}
 
           {view === 'settings' && <section>
             <h2>⚙️ সেটিংস</h2>
