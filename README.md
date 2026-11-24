@@ -40,13 +40,20 @@ The app opens on a Login / Sign Up screen (Bangla, logo on top, brown/gold theme
 21. Settings — shop name, phone, address, opening time, VAT %, service charge %, business type (Tea shop / Cafe / Restaurant), themes (Brown/Gold default, Green, Teal)
 22. Plan — Trial / Monthly, ৳2,000/month (yearly ৳20,000), features list, manual-payment note
 23. Sidebar navigation — fixed shop logo + name on top, Dashboard as a direct top-level item, collapsible groups (মেনু ও টেবিল / বিক্রি / কাস্টমার / টাকা ও হিসাব / পরিচালনা / সেটিংস); on mobile it becomes a horizontal scroll nav
+24. Menu Scan — photo → OCR → auto-add (see "Menu Scan" section below)
 
 ## Data — important limit
 All data is stored in the browser's `localStorage` (key `dpcw-v1`; POS draft in `dpcw-pos-draft-v1`), so it works on Vercel free static hosting with no database.
 **That means orders placed on one phone will NOT appear on another phone.** For real multi-device sync the next step is a shared database — Vercel Postgres or Vercel KV plus a small API — not included in this static build.
 
+## Menu Scan — works (client-side OCR, no API key)
+- Scan page: owner takes/uploads a menu photo (file input + camera capture). tesseract.js runs OCR **in the browser** with `ben+eng` trained data and a progress bar — no server, no API key, no credits needed (the OpenAI key in this workspace has no credits, so it is not used).
+- Parsed items are **auto-added straight to the Menu** — no preview/confirm step (Sir's rule, same as CafePilot). Wrong items the owner deletes from the Menu page.
+- Parser (`src/scanParse.js`): Bengali digits ০-৯ → ASCII; price must be present and ৳5–৳10000; headings become categories, never items; a line with a price is always an item (even "Green Tea"); fuzzy dedupe (edit distance ≤2) skips items already in the menu — ফুচকা vs দই ফুচকা stay separate.
+- After a scan the page shows in Bangla: how many added, how many skipped as duplicates, how many lines dropped (no price), plus the added items list and a link to the Menu page. A text-paste fallback is also on the page (one item per line, price at the end).
+- **Honest OCR limits (also shown on the scan page):** OCR can misread 1–2 letters; Bengali handwriting and very small fonts read worse; English digits read better than Bengali digits; the first scan downloads the OCR model, so it takes longer. Test (2026-11-24, clean printed test menu, 8 lines): real OCR read all 7 item lines correctly in ~17s — 4 added, 3 skipped as duplicates, 1 line dropped (the title). Same dish written in English vs Bengali (Special Malai Cha vs স্পেশাল মালাই চা) is NOT deduped — it is added as a separate item.
+
 ## Honest limits (backend-only, not faked as working)
-- **Menu Scan** — the page says "শীঘ্রই আসছে — ব্যাকএন্ড AI লাগবে". Reading items from a menu photo needs an AI vision backend; this static build has none. Items can be added manually from the Menu page.
 - **Multi-device sync** — data is localStorage-only on this device (see the note on Settings / Dashboard). Real sync needs a shared database/backend.
 - **Payments** — bKash / Nagad / Card are recorded manually on the bill only; there is no payment-gateway integration. Plan payment is manual as well.
 
