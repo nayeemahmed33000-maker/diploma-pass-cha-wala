@@ -1,6 +1,9 @@
 # দ্য ডিপ্লোমা পাস চা-ওয়ালা — Cafe Management System
 
-**Version: v1.5.1 — Professional.** The version string is shown in the sidebar footer, the app footer, the customer footer, and the login screen footer, so a fresh live check can prove the new version reached the device.
+**Version: v1.6.1 — Bponi Parity.** The version string is shown in the sidebar footer, the app footer, the customer footer, and the login screen footer, so a fresh live check can prove the new version reached the device.
+
+## KDS wait-time fix (v1.6.1)
+- Orders saved before v1.6.0 had no `createdAt`, so the KDS wait time showed 0 min and oldest-first sorting failed. On load, `createdAt` is now backfilled from the order's Bengali time string on its date in Dhaka time (+06:00); seed demo orders derive their time strings from their `createdAt` values.
 
 ## Landing page (before login)
 The app now opens on a landing page, not straight on the login form: hero with the logo, name, tagline "চা, গল্প, আড্ডা", address "1640 Narsingdi, Bangladesh", opening time, feature cards (Menu Scan, QR Menu, Orders, Kitchen, POS + Bill, Reports), pricing note (৳2,000/month, yearly ৳20,000), and three buttons — Login, Sign Up, and Customer Menu (opens the QR customer menu with no login). Login / Sign Up is the auth screen reached from the landing page; logging out returns to the landing page.
