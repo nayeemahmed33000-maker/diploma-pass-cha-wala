@@ -1,11 +1,12 @@
 # দ্য ডিপ্লোমা পাস চা-ওয়ালা — Cafe Management System
 
-**Version: v1.5.0 — Professional.** The version string is shown in the sidebar footer, the app footer, the customer footer, and the login screen footer, so a fresh live check can prove the new version reached the device.
+**Version: v1.5.1 — Professional.** The version string is shown in the sidebar footer, the app footer, the customer footer, and the login screen footer, so a fresh live check can prove the new version reached the device.
 
 ## Landing page (before login)
 The app now opens on a landing page, not straight on the login form: hero with the logo, name, tagline "চা, গল্প, আড্ডা", address "1640 Narsingdi, Bangladesh", opening time, feature cards (Menu Scan, QR Menu, Orders, Kitchen, POS + Bill, Reports), pricing note (৳2,000/month, yearly ৳20,000), and three buttons — Login, Sign Up, and Customer Menu (opens the QR customer menu with no login). Login / Sign Up is the auth screen reached from the landing page; logging out returns to the landing page.
 
-## Professional polish (v1.5.0)
+## Professional polish (v1.5.1)
+- Address migration (v1.5.1): older saved shop data that still says Narayanganj is migrated on load to "1640 Narsingdi, Bangladesh".
 - Toasts instead of browser `alert()` popups for order, bill, coupon, review, settings, and validation messages (Bangla, auto-dismiss); `confirm()` is kept before delete / cancel / cart-clear / day-close.
 - Consistent branding: logo in the landing hero, header, sidebar, login card, bill, and every QR card (shop name + address on the QR card).
 - Phone number: the Settings value `01900-000000` is only a **placeholder** — it is labelled as such in Settings, warned about there, and is **never printed on bills or QR cards** as if it were real. A real phone number from Sir is still needed.
