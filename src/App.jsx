@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import Tesseract from 'tesseract.js'
 import { parseMenuText } from './scanParse.js'
+import { parseVoiceOrder, parseVoiceBazar } from './voiceParse.js'
 
 const KEY = 'dpcw-v1'
 const USERS_KEY = 'dpcw-users-v1'
@@ -12,13 +13,14 @@ function hashPw(pw) { let h = 5381; for (let i = 0; i < pw.length; i++) h = ((h 
 function seedUsers() { return [{ id: 'u-owner', name: 'Owner', email: 'owner@diplomacha.com', pwHash: hashPw('123456'), role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', created: todayStr() }] }
 function loadUsers() { try { const d = JSON.parse(localStorage.getItem(USERS_KEY)); if (Array.isArray(d) && d.length) return d } catch { /* fall through to seed */ } const s = seedUsers(); try { localStorage.setItem(USERS_KEY, JSON.stringify(s)) } catch { /* ignore */ } return s }
 function loadSession() { try { return localStorage.getItem(SESSION_KEY) || '' } catch { return '' } }
-const VERSION = 'v1.5.1 — Professional'
+const VERSION = 'v1.6.0 — Bponi Parity'
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
 const dhakaLong = (d = new Date()) => d.toLocaleDateString('bn-BD', { timeZone: 'Asia/Dhaka', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const realPhone = (phone) => (phone && phone !== '01900-000000' ? phone : '')
 const tk = (n) => `৳${Number(n || 0).toLocaleString('en-IN')}`
 const bnNum = (n) => Number(n).toLocaleString('bn-BD')
 const STATUS = { new: 'নতুন', confirmed: 'কনফার্ম', ready: 'রেডি', served: 'পরিবেশন', paid: 'বিল পেইড', cancelled: 'বাতিল' }
+const DEFAULT_SOP = '১. দোকান খুলুন — ক্যাশ ড্রয়ারে শুরুর টাকা বসিয়ে শিফট খুলুন।\n২. অর্ডার নিন — টেবিলের QR / POS / ভয়েস অর্ডার থেকে।\n৩. কিচেনে পাঠান — KDS-এ টিকিট দেখে তৈরি করুন, রেডি হলে Ready চাপুন।\n৪. পরিবেশন করুন — ওয়েটার টেবিলে দিয়ে আসবে।\n৫. বিল করুন — POS থেকে Cash / bKash / Nagad / Card / Due-তে বিল।\n৬. বাকি থাকলে Due পাতায় লিখে রাখুন, টাকা পেলে আংশিক/পুরো জমা দিন।\n৭. দিন শেষে — শিফট বন্ধ করুন, তারপর দিনের হিসাব বন্ধ (Day-close) করুন।'
 const STATIONS = ['Drinks', 'Kitchen', 'Snacks']
 const CATS = ['দুধ চা', 'রং চা', 'কফি', 'মকটেল', 'লাচ্ছি', 'স্ন্যাকস']
 const PERMS = ['order', 'pos', 'kitchen', 'menu', 'reports', 'tables', 'staff']
@@ -58,14 +60,14 @@ function defaultPermsForStaff(s) {
 function seed() {
   const t = todayStr()
   const y = new Date(Date.now() - 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
-  const mk = (id, date, table, items, status, time) => ({
-    id, date, table, customer: 'ডেমো কাস্টমার', items: items.map(([mid, qty]) => {
+  const mk = (id, date, table, items, status, time, createdAt) => ({
+    id, date, table, createdAt: createdAt || Date.now(), customer: 'ডেমো কাস্টমার', items: items.map(([mid, qty]) => {
       const m = seedMenu.find((x) => x.id === mid); return { id: mid, name: m.name, price: m.price, qty, station: m.station }
     }), status, time, billNo: status === 'paid' ? 'Bill No-0001' : null, type: 'Dine-in', payment: status === 'paid' ? 'Cash' : null, billedBy: status === 'paid' ? 'মালিক' : null,
   })
   const stock = {}; seedMenu.forEach((m) => { stock[m.id] = 20 })
   return {
-    settings: { shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', phone: '01900-000000', address: '1640 Narsingdi, Bangladesh', open: 'সকাল ১০টা — রাত ১০টা', vat: 0, service: 0, businessType: 'Tea shop', theme: 'brown' },
+    settings: { shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', phone: '01900-000000', address: '1640 Narsingdi, Bangladesh', open: 'সকাল ১০টা — রাত ১০টা', vat: 0, service: 0, businessType: 'Tea shop', sop: DEFAULT_SOP, theme: 'brown' },
     menu: seedMenu,
     tables: Array.from({ length: 10 }, (_, i) => ({ code: `T-${String(i + 1).padStart(2, '0')}`, name: `টেবিল ${bnNum(i + 1)}` })),
     staff: [
@@ -74,15 +76,17 @@ function seed() {
       { id: 's3', name: 'রাতুল', role: 'স্ন্যাকস-মেকার — শুধু স্ন্যাকস', pin: '2222', station: 'Snacks', perms: ['order', 'kitchen'] },
     ],
     orders: [
-      mk('ORD-1001', t, 'T-01', [['m1', 2], ['m21', 1]], 'new', '০৯:৩২'),
-      mk('ORD-1002', t, 'T-03', [['m2', 1], ['m20', 2]], 'ready', '০৯:১৫'),
-      mk('ORD-1003', t, 'T-02', [['m1', 1], ['m13', 1]], 'paid', '০৮:৫০'),
-      mk('ORD-0998', y, 'T-05', [['m1', 3], ['m22', 1]], 'paid', '১৯:২০'),
+      mk('ORD-1001', t, 'T-01', [['m1', 2], ['m21', 1]], 'new', '০৯:৩২', Date.now() - 3 * 60000),
+      mk('ORD-1002', t, 'T-03', [['m2', 1], ['m20', 2]], 'ready', '০৯:১৫', Date.now() - 12 * 60000),
+      mk('ORD-1003', t, 'T-02', [['m1', 1], ['m13', 1]], 'paid', '০৮:৫০', Date.now() - 45 * 60000),
+      mk('ORD-0998', y, 'T-05', [['m1', 3], ['m22', 1]], 'paid', '১৯:২০', Date.now() - 86400000),
     ],
-    bills: [{ no: 'Bill No-0001', date: t, orderId: 'ORD-1003', total: 90, subtotal: 90, discount: 0, vat: 0, service: 0, payment: 'Cash', type: 'Dine-in', billedBy: 'মালিক' }],
+    bills: [{ no: 'Bill No-0001', date: t, createdAt: Date.now() - 45 * 60000, orderId: 'ORD-1003', total: 90, subtotal: 90, discount: 0, vat: 0, service: 0, payment: 'Cash', type: 'Dine-in', billedBy: 'মালিক' }],
     seq: 1003,
     expenses: [], coupons: [], members: [], bookings: [], stock,
     deliveryOrders: [], cateringOrders: [], reviews: [], bells: [], leaves: [],
+    bazar: [], vendors: [{ id: 'v1', name: 'স্থানীয় বাজার', phone: '' }], shifts: [], dues: [],
+    branches: [{ id: 'br-1', name: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা — মূল শাখা', address: '1640 Narsingdi, Bangladesh', isMain: true }], salaries: [],
     dayCloses: [], visits: { total: 0, byDate: {} }, posDraft: null,
     plan: { type: 'trial', price: 2000 },
   }
@@ -101,7 +105,7 @@ function load() {
     merged.visits = { total: 0, byDate: {}, ...(d.visits || {}) }
     merged.stock = { ...s.stock, ...(d.stock || {}) }
     merged.staff = (d.staff || []).map((st) => ({ ...st, perms: Array.isArray(st.perms) && st.perms.length ? st.perms : defaultPermsForStaff(st) }))
-    for (const k of ['expenses', 'coupons', 'members', 'bookings', 'deliveryOrders', 'cateringOrders', 'reviews', 'bells', 'leaves', 'dayCloses']) if (!Array.isArray(merged[k])) merged[k] = []
+    for (const k of ['expenses', 'coupons', 'members', 'bookings', 'deliveryOrders', 'cateringOrders', 'reviews', 'bells', 'leaves', 'dayCloses', 'bazar', 'vendors', 'shifts', 'dues', 'branches', 'salaries']) if (!Array.isArray(merged[k])) merged[k] = []
     return merged
   } catch { return seed() }
 }
@@ -136,7 +140,7 @@ export default function App() {
   const [newStaff, setNewStaff] = useState({ name: '', role: '', pin: '', station: 'Drinks' })
   const [newTable, setNewTable] = useState('')
   const [settings, setSettings] = useState(data.settings)
-  const [openGroups, setOpenGroups] = useState({ menu: true, sell: true, customer: true, money: true, manage: true, settings: true })
+  const [openGroups, setOpenGroups] = useState({ menu: true, sell: true, customer: true, money: true, manage: true, tools: true, settings: true })
   // --- Login / Sign Up (first screen) ---
   const [isCustomer] = useState(() => new URLSearchParams(window.location.search).has('table'))
   const [users, setUsers] = useState(loadUsers)
@@ -165,6 +169,21 @@ export default function App() {
   const [newLeave, setNewLeave] = useState({ staffId: '', from: todayStr(), to: todayStr(), reason: '' })
   const [reviewForm, setReviewForm] = useState({ name: '', stars: 5, comment: '' })
   const [replyText, setReplyText] = useState({})
+  // --- v1.6.0 Bponi parity state ---
+  const [newBazar, setNewBazar] = useState({ item: '', qty: 1, cost: '', vendor: '', date: todayStr() })
+  const [newVendor, setNewVendor] = useState({ name: '', phone: '' })
+  const [newBranch, setNewBranch] = useState({ name: '', address: '' })
+  const [shiftStart, setShiftStart] = useState('')
+  const [shiftCounted, setShiftCounted] = useState('')
+  const [selTable, setSelTable] = useState('')
+  const [duePay, setDuePay] = useState({})
+  const [salaryAmt, setSalaryAmt] = useState({})
+  const [sopDraft, setSopDraft] = useState(data.settings.sop || DEFAULT_SOP)
+  const [voiceMode, setVoiceMode] = useState('order')
+  const [voiceListening, setVoiceListening] = useState(false)
+  const [voiceText, setVoiceText] = useState('')
+  const [voiceMsg, setVoiceMsg] = useState('')
+  const [kdsTick, setKdsTick] = useState(0)
   // --- Menu scan (client-side OCR with tesseract.js, ben+eng; no API key) ---
   const [scanFile, setScanFile] = useState(null)
   const [scanPreview, setScanPreview] = useState('')
@@ -223,6 +242,8 @@ export default function App() {
     setData((d) => { const c = structuredClone(d); const t = todayStr(); c.visits.total = (c.visits.total || 0) + 1; c.visits.byDate[t] = (c.visits.byDate[t] || 0) + 1; return c })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view])
+  // KDS waiting-time colours need a re-render every 30s.
+  useEffect(() => { const id = window.setInterval(() => setKdsTick((t) => t + 1), 30000); return () => window.clearInterval(id) }, [])
   // POS draft: restore once, then auto-save on every change.
   useEffect(() => {
     if (posDraftLoaded) return
@@ -264,7 +285,20 @@ export default function App() {
     const m = {}; todayOrders.forEach((o) => o.items.forEach((i) => { m[i.name] = (m[i.name] || 0) + i.qty }))
     return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5)
   }, [todayOrders])
+  // --- v1.6.0 computed values ---
+  const topItemsAll = useMemo(() => {
+    const m = {}
+    data.orders.forEach((o) => o.items.forEach((i) => { m[i.id] = (m[i.id] || 0) + i.qty }))
+    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id, qty]) => ({ menu: data.menu.find((x) => x.id === id), qty })).filter((x) => x.menu)
+  }, [data.orders, data.menu])
+  const monthKey = todayStr().slice(0, 7)
+  const monthBazarTotal = (data.bazar || []).filter((b) => String(b.date || '').startsWith(monthKey)).reduce((s, b) => s + Number(b.cost || 0), 0)
+  const totalDueOutstanding = (data.dues || []).reduce((s, d) => s + Math.max(0, Number(d.amount || 0) - Number(d.paid || 0)), 0)
+  const openShift = (data.shifts || []).find((s) => !s.closedAt)
+  const openOrdersFor = (code) => data.orders.filter((o) => o.table === code && !['paid', 'cancelled'].includes(o.status))
+  const tableRunningTotal = (code) => openOrdersFor(code).reduce((s, o) => s + total(o), 0)
   const baseUrl = window.location.origin + window.location.pathname
+  const SpeechRec = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null
   const activeBells = data.bells.filter((b) => !b.done)
 
   function awardPoints(phone, amount) {
@@ -282,11 +316,79 @@ export default function App() {
     })
     if (!items.length) { showToast('কার্ট খালি — আগে আইটেম যোগ করুন', 'err'); return }
     const seq = data.seq + 1
-    const order = { id: `ORD-${seq}`, date: todayStr(), table: custTable, customer: custName || 'কাস্টমার', items, status: 'new', time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }), billNo: null, type: 'Dine-in', payment: null, billedBy: actorName() }
+    const order = { id: `ORD-${seq}`, date: todayStr(), table: custTable, customer: custName || 'কাস্টমার', items, status: 'new', time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }), createdAt: Date.now(), billNo: null, type: 'Dine-in', payment: null, billedBy: actorName() }
     upd((d) => { d.orders.unshift(order); d.seq = seq; return d })
     setCart({}); setLastOrder(order.id); setAlert(order); setView('customer')
   }
   function setStatus(id, status) { upd((d) => { const o = d.orders.find((x) => x.id === id); if (o) o.status = status; return d }) }
+  // --- v1.6.0 helpers ---
+  const waitMins = (o) => (o.createdAt ? Math.max(0, Math.floor((Date.now() - o.createdAt) / 60000)) : 0)
+  const waitClass = (m) => (m < 5 ? 'wait-fresh' : m <= 10 ? 'wait-amber' : 'wait-red')
+  // PIN login lands by role/perms, not always Kitchen.
+  function pinLandingView(s) {
+    const r = String(s.role || '').toLowerCase()
+    const perms = s.perms || defaultPermsForStaff(s)
+    if (r.includes('cashier') || r.includes('ক্যাশিয়ার')) return 'pos'
+    if (r.includes('waiter') || r.includes('ওয়েটার')) return 'tables'
+    if (r.includes('owner') || r.includes('মালিক')) return 'dashboard'
+    if (perms.includes('pos')) return 'pos'
+    if (perms.includes('tables') && perms.includes('order') && !perms.includes('kitchen')) return 'tables'
+    if (perms.includes('kitchen') && !perms.includes('pos')) return 'kitchen'
+    if (perms.includes('tables')) return 'tables'
+    return 'dashboard'
+  }
+  // KDS Ready: status ready + waiter bell alert + vibrate + toast.
+  function markReady(id) {
+    const o = data.orders.find((x) => x.id === id)
+    if (!o) return
+    setStatus(id, 'ready')
+    upd((d) => { d.bells.push({ id: `bell-${Date.now()}`, table: o.table, time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }), date: todayStr(), done: false, kind: 'ready', note: `${o.id} রেডি` }); return d })
+    try { if (navigator.vibrate) navigator.vibrate(200) } catch { /* ignore */ }
+    showToast(`🔔 ${o.id} (${o.table}) রেডি — ওয়েটারকে জানানো হয়েছে`)
+  }
+  // 1-Tap POS: one tap = one paid Cash bill for a single item.
+  function quickBill(m) {
+    const seq = data.seq + 1; const t = todayStr(); const no = nextBillNo()
+    const items = [{ id: m.id, name: m.name, price: m.price, qty: 1, station: m.station }]
+    const calc = billCalc(m.price, 0, data.settings.vat, data.settings.service)
+    const order = { id: `ORD-${seq}`, date: t, table: 'T-01', customer: 'কাউন্টার কাস্টমার', items, status: 'paid', time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }), createdAt: Date.now(), billNo: no, type: 'Dine-in', payment: 'Cash', billedBy: actorName() }
+    const b = { no, date: t, orderId: order.id, ...calc, payment: 'Cash', type: 'Dine-in', billedBy: actorName(), createdAt: Date.now() }
+    upd((d) => { d.orders.unshift(order); d.bills.push(b); d.seq = seq; return d })
+    decrementStock(items)
+    setBill({ ...b, order }); showToast(`✅ ${m.name} — ${tk(calc.total)} Cash বিল হয়েছে (${no})`)
+  }
+  function speakText(text) { try { const u = new SpeechSynthesisUtterance(text); u.lang = 'bn-BD'; window.speechSynthesis.speak(u) } catch { /* ignore */ } }
+  function handleVoiceText(text) {
+    if (voiceMode === 'order') {
+      const p = parseVoiceOrder(text, data.menu)
+      if (!p) { setVoiceMsg('আইটেম চেনা যায়নি — মেনুর নাম স্পষ্ট করে বলুন, যেমন "দুইটা স্পেশাল মালাই চা, টেবিল ৫"।'); return }
+      const seq = data.seq + 1
+      const order = { id: `ORD-${seq}`, date: todayStr(), table: p.table || 'T-01', customer: 'ভয়েস অর্ডার', items: [{ id: p.item.id, name: p.item.name, price: p.item.price, qty: p.qty, station: p.item.station }], status: 'new', time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }), createdAt: Date.now(), billNo: null, type: 'Dine-in', payment: null, billedBy: actorName() }
+      upd((d) => { d.orders.unshift(order); d.seq = seq; return d })
+      setVoiceMsg(`✅ অর্ডার হয়েছে: ${p.item.name} × ${p.qty} — ${p.table || 'T-01'} • ${tk(p.item.price * p.qty)}`)
+      showToast('ভয়েস অর্ডার তৈরি হয়েছে')
+    } else if (voiceMode === 'bazar') {
+      const p = parseVoiceBazar(text)
+      if (!p) { setVoiceMsg('আইটেম ও দাম চেনা যায়নি — যেমন বলুন: "দুধ ৫ কেজি ৩০০ টাকা"।'); return }
+      upd((d) => { if (!Array.isArray(d.bazar)) d.bazar = []; d.bazar.unshift({ id: `bz-${Date.now()}`, item: p.item, qty: p.qty, cost: p.cost, vendor: '', date: todayStr() }); return d })
+      setVoiceMsg(`✅ বাজারে যোগ হয়েছে: ${p.item} × ${p.qty} — ${tk(p.cost)}`)
+      showToast('ভয়েস বাজার এন্ট্রি যোগ হয়েছে')
+    } else {
+      const msg = `আজকের বিক্রি ${tk(todaySale)}, মোট ${bnNum(todayOrders.length)}টি অর্ডার।`
+      setVoiceMsg(`🔊 ${msg}`)
+      speakText(msg)
+    }
+  }
+  function startVoice() {
+    if (!SpeechRec) { setVoiceMsg('এই ব্রাউজারে ভয়েস সাপোর্ট নেই — Chrome ব্রাউজার ব্যবহার করুন।'); return }
+    const rec = new SpeechRec()
+    rec.lang = 'bn-BD'; rec.interimResults = false; rec.maxAlternatives = 1
+    setVoiceListening(true); setVoiceMsg('শুনছি… বলুন।')
+    rec.onresult = (e) => { const text = e.results[0][0].transcript; setVoiceText(text); handleVoiceText(text) }
+    rec.onerror = (e) => { setVoiceListening(false); setVoiceMsg(`ভয়েস শোনা যায়নি — আবার চেষ্টা করুন। (${e.error || ''})`) }
+    rec.onend = () => setVoiceListening(false)
+    try { rec.start() } catch { setVoiceListening(false) }
+  }
   function nextBillNo() {
     const t = todayStr(); const n = data.bills.filter((b) => b.date === t).length + 1
     return `Bill No-${String(n).padStart(4, '0')}`
@@ -294,8 +396,8 @@ export default function App() {
   function makeBill(order, payment = 'Cash', couponPct = 0) {
     const t = todayStr(); const no = nextBillNo()
     const calc = billCalc(total(order), couponPct, data.settings.vat, data.settings.service)
-    const b = { no, date: t, orderId: order.id, ...calc, payment, type: order.type || 'Dine-in', billedBy: actorName() }
-    upd((d) => { d.bills.push(b); const o = d.orders.find((x) => x.id === order.id); if (o) { o.status = 'paid'; o.billNo = no; o.payment = payment; o.billedBy = b.billedBy } return d })
+    const b = { no, date: t, orderId: order.id, ...calc, payment, type: order.type || 'Dine-in', billedBy: actorName(), createdAt: Date.now() }
+    upd((d) => { d.bills.push(b); const o = d.orders.find((x) => x.id === order.id); if (o) { o.status = 'paid'; o.billNo = no; o.payment = payment; o.billedBy = b.billedBy } if (payment === 'Due') { if (!Array.isArray(d.dues)) d.dues = []; d.dues.push({ id: `due-${Date.now()}`, date: t, orderId: order.id, customer: order.customer || 'কাউন্টার কাস্টমার', table: order.table || '', amount: calc.total, paid: 0, createdAt: Date.now() }) } return d })
     decrementStock(order.items)
     if (order.memberPhone) awardPoints(order.memberPhone, calc.total)
     setBill({ ...b, order }); setStatus(order.id, 'paid')
@@ -349,14 +451,15 @@ export default function App() {
   const lastOrderObj = data.orders.find((o) => o.id === lastOrder)
   const kdsOrders = data.orders.filter((o) => ['new', 'confirmed', 'ready'].includes(o.status))
 
-  const PAGE_PERM = { menu: 'menu', tables: 'tables', scan: 'menu', orders: 'order', pos: 'pos', kitchen: 'kitchen', delivery: 'order', catering: 'order', members: 'order', reviews: 'order', bookings: 'order', reports: 'reports', analytics: 'reports', expenses: 'reports', dayclose: 'pos', staff: 'staff', leave: 'staff', stock: 'menu', offers: 'pos', settings: null, plan: null }
+  const PAGE_PERM = { menu: 'menu', tables: 'tables', scan: 'menu', orders: 'order', pos: 'pos', kitchen: 'kitchen', delivery: 'order', catering: 'order', members: 'order', reviews: 'order', bookings: 'order', reports: 'reports', analytics: 'reports', expenses: 'reports', dayclose: 'pos', staff: 'staff', leave: 'staff', stock: 'menu', offers: 'pos', settings: null, plan: null, bazar: 'reports', vendors: 'reports', shift: 'pos', due: 'pos', voice: 'order', branches: null, growth: 'reports', sop: null, salary: 'staff' }
   const NAV_GROUPS = [
     { key: 'menu', label: '🍵 মেনু ও টেবিল', items: [['menu', '🍵 মেনু'], ['tables', '🪑 টেবিল + QR'], ['scan', '📸 মেনু স্ক্যান']] },
-    { key: 'sell', label: '🛒 বিক্রি', items: [['orders', '🧾 অর্ডার'], ['pos', '💰 POS + বিল'], ['kitchen', '👨‍🍳 কিচেন (KDS)'], ['delivery', '🛵 ডেলিভারি'], ['catering', '🎉 ক্যাটারিং']] },
+    { key: 'sell', label: '🛒 বিক্রি', items: [['orders', '🧾 অর্ডার'], ['pos', '💰 POS + বিল'], ['kitchen', '👨‍🍳 কিচেন (KDS)'], ['voice', '🎙️ ভয়েস অর্ডার'], ['delivery', '🛵 ডেলিভারি'], ['catering', '🎉 ক্যাটারিং']] },
     { key: 'customer', label: '👥 কাস্টমার', items: [['customer', '🛒 কাস্টমার মেনু'], ['members', '⭐ মেম্বার / পয়েন্ট'], ['reviews', '💬 রিভিউ'], ['bookings', '📅 বুকিং']] },
-    { key: 'money', label: '💵 টাকা ও হিসাব', items: [['reports', '📈 রিপোর্ট'], ['analytics', '📊 অ্যানালিটিক্স'], ['expenses', '💸 খরচ'], ['dayclose', '🌙 দিনের হিসাব বন্ধ']] },
-    { key: 'manage', label: '⚙️ পরিচালনা', items: [['staff', '👥 স্টাফ'], ['leave', '🏖️ স্টাফ ছুটি'], ['stock', '📦 স্টক'], ['offers', '🎟️ অফার / কুপন']] },
-    { key: 'settings', label: '🔧 সেটিংস', items: [['settings', '⚙️ সেটিংস'], ['plan', '💎 প্ল্যান']] },
+    { key: 'money', label: '💵 টাকা ও হিসাব', items: [['reports', '📈 রিপোর্ট'], ['analytics', '📊 অ্যানালিটিক্স'], ['expenses', '💸 খরচ'], ['bazar', '🛒 বাজার / কেনা'], ['vendors', '🏪 ভেন্ডর'], ['shift', '💵 ক্যাশ ড্রয়ার / শিফট'], ['due', '📒 বাকি (Due)'], ['dayclose', '🌙 দিনের হিসাব বন্ধ']] },
+    { key: 'manage', label: '⚙️ পরিচালনা', items: [['staff', '👥 স্টাফ'], ['salary', '💰 বেতন'], ['leave', '🏖️ স্টাফ ছুটি'], ['stock', '📦 স্টক'], ['offers', '🎟️ অফার / কুপন']] },
+    { key: 'tools', label: '📈 আরও টুল', items: [['growth', '📈 সেলস গ্রোথ'], ['sop', '📋 SOP — কাজের নিয়ম']] },
+    { key: 'settings', label: '🔧 সেটিংস', items: [['settings', '⚙️ সেটিংস'], ['branches', '🏬 শাখা'], ['plan', '💎 প্ল্যান']] },
   ]
   const toggleGroup = (k) => setOpenGroups((g) => ({ ...g, [k]: !g[k] }))
 
@@ -566,7 +669,8 @@ export default function App() {
             <h2>🪑 টেবিল + QR — {bnNum(data.tables.length)}টি টেবিল</h2>
             <p>কাস্টমার টেবিলের QR স্ক্যান করলেই ওই টেবিলের মেনু খুলবে। QR প্রিন্ট করে টেবিলে লাগান।</p>
             <div className="menu-form"><input placeholder="নতুন টেবিল কোড, যেমন T-11" value={newTable} onChange={(e) => setNewTable(e.target.value)} /><button onClick={() => { if (!newTable) return; upd((d) => { d.tables.push({ code: newTable.toUpperCase(), name: `টেবিল ${newTable}` }); return d }); setNewTable('') }}>➕ টেবিল যোগ</button><button onClick={() => window.print()}>🖨️ সব QR প্রিন্ট</button></div>
-            <div className="qr-grid print-area">{data.tables.map((t) => <div key={t.code} className="qr-card"><img src="/logo.jpg" alt="" className="qr-logo" /><b>{data.settings.shop}</b><small>{data.settings.address}</small><QRCodeSVG value={`${baseUrl}?table=${t.code}`} size={130} /><b>{t.name}</b><small>{t.code}</small><small>{baseUrl}?table={t.code}</small><button className="no-print" onClick={() => { setCustTable(t.code); setView('customer') }}>কাস্টমার মেনু দেখুন →</button></div>)}</div>
+            <div className="qr-grid print-area">{data.tables.map((t) => <div key={t.code} className="qr-card"><img src="/logo.jpg" alt="" className="qr-logo" /><b>{data.settings.shop}</b><small>{data.settings.address}</small><QRCodeSVG value={`${baseUrl}?table=${t.code}`} size={130} /><b>{t.name}</b><small>{t.code}</small><span>💰 চলমান বিল: <b>{tk(tableRunningTotal(t.code))}</b> ({bnNum(openOrdersFor(t.code).length)}টি খোলা অর্ডার)</span><small>{baseUrl}?table={t.code}</small><button className="no-print" onClick={() => setSelTable(t.code)}>🧾 চলমান বিল দেখুন</button><button className="no-print" onClick={() => { setCustTable(t.code); setView('customer') }}>কাস্টমার মেনু দেখুন →</button></div>)}</div>
+            {selTable && <div className="box"><h3>🧾 {selTable} — চলমান বিল</h3>{openOrdersFor(selTable).map((o) => <p key={o.id}><b>{o.id}</b> • {STATUS[o.status]} • {o.items.map((i) => `${i.name} × ${i.qty}`).join(', ')} • <b>{tk(total(o))}</b> <button onClick={() => makeBill(o)}>🧾 বিল করুন</button></p>)}{!openOrdersFor(selTable).length && <p>এই টেবিলে কোনো খোলা অর্ডার নেই।</p>}<p><b>মোট চলমান বিল: {tk(tableRunningTotal(selTable))}</b></p><button onClick={() => setSelTable('')}>✕ বন্ধ</button></div>}
           </section>}
 
           {view === 'scan' && <section>
@@ -612,6 +716,10 @@ export default function App() {
           {view === 'kitchen' && <section>
             <h2>👨‍🍳 কিচেন ডিসপ্লে (KDS)</h2>
             <p>স্টাফ: {activeStaff ? `${activeStaff.name} (${activeStaff.station === 'All' ? 'সব স্টেশন' : activeStaff.station + ' শুধু'}) — ` : 'কেউ লগইন করেনি — সব স্টেশন দেখা যাচ্ছে। '} <button onClick={() => setActiveStaff(null)}>লগআউট</button></p>
+            <p className="note">⏱️ অপেক্ষার রং: <span className="wait-fresh">সবুজ — ৫ মিনিটের কম</span> • <span className="wait-amber">হলুদ — ৫–১০ মিনিট</span> • <span className="wait-red">লাল — ১০ মিনিটের বেশি</span> • পুরনো টিকিট আগে।<span style={{ display: 'none' }}>{kdsTick}</span></p>
+            <h3>🎫 টিকিট — পুরনো আগে ({bnNum(kdsOrders.length)}টি)</h3>
+            {[...kdsOrders].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map((o) => { const w = waitMins(o); return (<div key={o.id} className={`box kds-ticket ${waitClass(w)}`}><b>{o.id}</b> • {o.table} • {o.time} • ⏱️ {bnNum(w)} মিনিট • <b>{STATUS[o.status]}</b><p>{o.items.map((i) => `${i.name} × ${i.qty}`).join(', ')}</p><p>মোট: <b>{tk(total(o))}</b></p>{['new', 'confirmed'].includes(o.status) && <button onClick={() => markReady(o.id)}>🔔 রেডি — ওয়েটারকে জানান</button>}{o.status === 'ready' && <span> ✅ রেডি — ওয়েটারকে জানানো হয়েছে</span>}</div>) })}
+            {!kdsOrders.length && <p>কোনো কাজ নেই।</p>}
             <div className="chips">{['All', ...STATIONS].map((s) => <button key={s} className={(activeStaff ? activeStaff.station : kdsStation) === s ? 'on' : ''} onClick={() => setKdsStation(s)}>{s === 'All' ? 'সব' : s}</button>)}</div>
             <div className="grid2">{STATIONS.filter((s) => (activeStaff ? activeStaff.station : kdsStation) === 'All' || (activeStaff ? activeStaff.station : kdsStation) === s).map((st) => <div key={st} className="box"><h3>{st}</h3>{kdsOrders.flatMap((o) => o.items.filter((i) => i.station === st).map((i) => ({ o, i }))).map(({ o, i }, idx) => <p key={idx}><b>{o.table}</b> — {i.name} × {i.qty} <small>({o.id} • {STATUS[o.status]})</small></p>)}{!kdsOrders.some((o) => o.items.some((i) => i.station === st)) && <p>কোনো কাজ নেই।</p>}</div>)}</div>
           </section>}
@@ -619,6 +727,7 @@ export default function App() {
           {view === 'pos' && <section>
             <h2>💰 POS + বিল</h2>
             <p>কাউন্টার থেকে সরাসরি বিল করুন — ধরন, পেমেন্ট মাধ্যম ও কুপন বেছে নিন। ভ্যাট {data.settings.vat}% ও সার্ভিস চার্জ {data.settings.service}% সেটিংস থেকে ধরা হয়। ড্রাফট নিজে থেকে সংরক্ষিত হয় {draftSavedAt ? `✓ ${draftSavedAt}` : ''}।</p>
+            <div className="box"><h3>⚡ ১-ট্যাপ বিল — সবচেয়ে বেশি বিক্রি হওয়া ৫টি</h3><p>এক ট্যাপেই একটা আইটেমের Cash বিল হয়ে যাবে, বিল উপরেই দেখাবে।</p><div className="row">{(topItemsAll.length ? topItemsAll : data.menu.filter((m) => m.active).slice(0, 5).map((m) => ({ menu: m, qty: 0 }))).map(({ menu: m, qty }) => <button key={m.id} className="quick-bill" onClick={() => quickBill(m)}>⚡ {m.name}<br />{tk(m.price)}{qty ? ` • ${bnNum(qty)}টি বিক্রি` : ''}</button>)}</div></div>
             <div className="menu-form">
               <label>ধরন: <select value={posType} onChange={(e) => setPosType(e.target.value)}>{ORDER_TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
               <label>পেমেন্ট: <select value={posPayment} onChange={(e) => setPosPayment(e.target.value)}>{PAYMENTS.map((p) => <option key={p}>{p}</option>)}</select></label>
@@ -645,9 +754,9 @@ export default function App() {
                   <div className="row">
                     <button disabled={!items.length} onClick={() => {
                       const seq = data.seq + 1; const t = todayStr(); const no = nextBillNo()
-                      const order = { id: `ORD-${seq}`, date: t, table: posType === 'Dine-in' ? posTable : posType, customer: posMember ? (data.members.find((m) => m.phone === posMember)?.name || 'মেম্বার') : 'কাউন্টার কাস্টমার', items, status: 'paid', time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }), billNo: no, type: posType, payment: posPayment, billedBy: actorName(), memberPhone: posMember || null }
-                      const b = { no, date: t, orderId: order.id, ...calc, payment: posPayment, type: posType, billedBy: actorName() }
-                      upd((d) => { d.orders.unshift(order); d.bills.push(b); d.seq = seq; return d })
+                      const order = { id: `ORD-${seq}`, date: t, table: posType === 'Dine-in' ? posTable : posType, customer: posMember ? (data.members.find((m) => m.phone === posMember)?.name || 'মেম্বার') : 'কাউন্টার কাস্টমার', items, status: 'paid', time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }), billNo: no, type: posType, payment: posPayment, billedBy: actorName(), memberPhone: posMember || null, createdAt: Date.now() }
+                      const b = { no, date: t, orderId: order.id, ...calc, payment: posPayment, type: posType, billedBy: actorName(), createdAt: Date.now() }
+                      upd((d) => { d.orders.unshift(order); d.bills.push(b); d.seq = seq; if (posPayment === 'Due') { if (!Array.isArray(d.dues)) d.dues = []; d.dues.push({ id: `due-${Date.now()}`, date: t, orderId: order.id, customer: order.customer, table: order.table, amount: calc.total, paid: 0, createdAt: Date.now() }) } return d })
                       decrementStock(items)
                       if (posMember) awardPoints(posMember, calc.total)
                       setBill({ ...b, order }); setPosCart({}); setPosCoupon(null); setPosCouponCode(''); setPosMember('')
@@ -826,11 +935,11 @@ export default function App() {
 
           {view === 'staff' && <section>
             <h2>👥 স্টাফ + PIN লগইন</h2>
-            <p>ডেমো PIN: মালিক 1234, নিলয় 1111, রাতুল 2222। স্টাফ নিজের PIN দিয়ে লগইন করলে কিচেনে শুধু তার স্টেশন দেখবে। মালিক প্রত্যেক স্টাফের অনুমতি (৭টি) বদলাতে পারে।</p>
+            <p>ডেমো PIN: মালিক 1234, নিলয় 1111, রাতুল 2222। স্টাফ নিজের PIN দিয়ে লগইন করলে তার ভূমিকা অনুযায়ী পাতায় যাবে — কিচেন স্টাফ কিচেনে, ক্যাশিয়ার POS-এ, ওয়েটার টেবিলে, মালিক ড্যাশবোর্ডে। মালিক প্রত্যেক স্টাফের অনুমতি (৭টি) বদলাতে পারে।</p>
             {data.staff.map((s) => <div key={s.id} className="box"><b>{s.name}</b> — {s.role}<br />
               <small>অনুমতি: {(s.perms || defaultPermsForStaff(s)).map((p) => PERM_LABELS[p]).join(', ')}</small>
               {isOwner() && <div className="row">{PERMS.map((p) => <label key={p} className="perm-check"><input type="checkbox" checked={(s.perms || []).includes(p)} onChange={(e) => upd((d) => { const x = d.staff.find((y) => y.id === s.id); if (!x) return d; const cur = new Set(x.perms || []); if (e.target.checked) cur.add(p); else cur.delete(p); x.perms = [...cur]; return d })} /> {PERM_LABELS[p]}</label>)}</div>}
-              {pinFor === s.id ? <span><input type="password" placeholder="PIN দিন" value={pinInput} onChange={(e) => setPinInput(e.target.value)} /> <button onClick={() => { if (pinInput === s.pin) { setActiveStaff(s); setPinFor(null); setPinInput(''); setView('kitchen') } else showToast('ভুল PIN', 'err') }}>লগইন</button></span> : <button onClick={() => setPinFor(s.id)}>🔑 PIN দিয়ে লগইন</button>}
+              {pinFor === s.id ? <span><input type="password" placeholder="PIN দিন" value={pinInput} onChange={(e) => setPinInput(e.target.value)} /> <button onClick={() => { if (pinInput === s.pin) { setActiveStaff(s); setPinFor(null); setPinInput(''); setView(pinLandingView(s)) } else showToast('ভুল PIN', 'err') }}>লগইন</button></span> : <button onClick={() => setPinFor(s.id)}>🔑 PIN দিয়ে লগইন</button>}
               {isOwner() && <button onClick={() => { if (confirm(`"${s.name}" মুছবেন?`)) upd((d) => { d.staff = d.staff.filter((x) => x.id !== s.id); return d }) }}>🗑️ মুছুন</button>}
             </div>)}
             <div className="menu-form"><input placeholder="নতুন স্টাফের নাম" value={newStaff.name} onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })} /><input placeholder="ভূমিকা, যেমন চা-মেকার" value={newStaff.role} onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })} /><input placeholder="PIN" value={newStaff.pin} onChange={(e) => setNewStaff({ ...newStaff, pin: e.target.value })} /><select value={newStaff.station} onChange={(e) => setNewStaff({ ...newStaff, station: e.target.value })}><option value="All">All</option>{STATIONS.map((s) => <option key={s}>{s}</option>)}</select><button onClick={() => { if (!newStaff.name || !newStaff.pin) return showToast('নাম ও PIN দিন', 'err'); const st = { id: `s${Date.now()}`, ...newStaff }; st.perms = defaultPermsForStaff(st); upd((d) => { d.staff.push(st); return d }); setNewStaff({ name: '', role: '', pin: '', station: 'Drinks' }) }}>➕ স্টাফ যোগ</button></div>
@@ -871,6 +980,129 @@ export default function App() {
             {!data.coupons.length && <p>কোনো কুপন নেই — উপরে তৈরি করুন।</p>}
           </section>}
 
+{view === 'bazar' && <section>
+            <h2>🛒 বাজার / কেনাকাটা</h2>
+            <p>দোকানের জন্য যা কেনা হয় (দুধ, চিনি, চা-পাতা, কাপ…) এখানে লিখুন। এটা <b>খরচের পাতা থেকে আলাদা</b> — বাজার শুধু কেনাকাটার হিসাব।</p>
+            <div className="menu-form">
+              <input placeholder="আইটেমের নাম, যেমন দুধ" value={newBazar.item} onChange={(e) => setNewBazar({ ...newBazar, item: e.target.value })} />
+              <input type="number" min="1" placeholder="পরিমাণ" value={newBazar.qty} onChange={(e) => setNewBazar({ ...newBazar, qty: Number(e.target.value) || 1 })} />
+              <input type="number" placeholder="মোট খরচ (৳)" value={newBazar.cost} onChange={(e) => setNewBazar({ ...newBazar, cost: e.target.value })} />
+              <select value={newBazar.vendor} onChange={(e) => setNewBazar({ ...newBazar, vendor: e.target.value })}><option value="">— ভেন্ডর বাছুন —</option>{(data.vendors || []).map((v) => <option key={v.id} value={v.name}>{v.name}</option>)}</select>
+              <input type="date" value={newBazar.date} onChange={(e) => setNewBazar({ ...newBazar, date: e.target.value })} />
+              <button onClick={() => { if (!newBazar.item || !newBazar.cost) return showToast('আইটেমের নাম ও খরচ দিন', 'err'); upd((d) => { if (!Array.isArray(d.bazar)) d.bazar = []; d.bazar.unshift({ id: `bz-${Date.now()}`, item: newBazar.item, qty: Number(newBazar.qty) || 1, cost: Number(newBazar.cost), vendor: newBazar.vendor, date: newBazar.date }); return d }); setNewBazar({ item: '', qty: 1, cost: '', vendor: '', date: todayStr() }) }}>➕ বাজার যোগ</button>
+            </div>
+            <p>এই মাসের মোট বাজার: <b>{tk(monthBazarTotal)}</b> • সব মিলিয়ে: <b>{tk((data.bazar || []).reduce((s, b) => s + Number(b.cost || 0), 0))}</b></p>
+            {(data.bazar || []).map((b) => <div key={b.id} className="box"><b>{b.item}</b> × {bnNum(b.qty || 1)} • {b.vendor || 'ভেন্ডর নেই'} • {b.date} • <b>{tk(b.cost)}</b> <button onClick={() => { if (confirm('মুছবেন?')) upd((d) => { d.bazar = (d.bazar || []).filter((x) => x.id !== b.id); return d }) }}>🗑️</button></div>)}
+            {!(data.bazar || []).length && <p>এখনো কোনো বাজার লেখা হয়নি। ভয়েস পাতা থেকেও বললেই বাজার যোগ হয়।</p>}
+          </section>}
+
+          {view === 'vendors' && <section>
+            <h2>🏪 ভেন্ডর (সাপ্লায়ার)</h2>
+            <p>যাদের কাছ থেকে বাজার কেনা হয় — বাজার পাতায় ভেন্ডর বাছতে এখানে আগে যোগ করুন।</p>
+            <div className="menu-form">
+              <input placeholder="ভেন্ডরের নাম" value={newVendor.name} onChange={(e) => setNewVendor({ ...newVendor, name: e.target.value })} />
+              <input placeholder="ফোন নম্বর" value={newVendor.phone} onChange={(e) => setNewVendor({ ...newVendor, phone: e.target.value })} />
+              <button onClick={() => { if (!newVendor.name) return showToast('ভেন্ডরের নাম দিন', 'err'); upd((d) => { if (!Array.isArray(d.vendors)) d.vendors = []; d.vendors.push({ id: `v-${Date.now()}`, name: newVendor.name, phone: newVendor.phone }); return d }); setNewVendor({ name: '', phone: '' }) }}>➕ ভেন্ডর যোগ</button>
+            </div>
+            <table className="tbl"><thead><tr><th>নাম</th><th>ফোন</th><th></th></tr></thead><tbody>
+              {(data.vendors || []).map((v) => <tr key={v.id}><td>{v.name}</td><td>{v.phone || '—'}</td><td><button onClick={() => { if (confirm(`"${v.name}" মুছবেন?`)) upd((d) => { d.vendors = (d.vendors || []).filter((x) => x.id !== v.id); return d }) }}>🗑️</button></td></tr>)}
+            </tbody></table>
+            {!(data.vendors || []).length && <p>কোনো ভেন্ডর নেই।</p>}
+          </section>}
+
+          {view === 'shift' && <section>
+            <h2>💵 ক্যাশ ড্রয়ার / শিফট</h2>
+            <p>শিফট খুলুন শুরুর ক্যাশ দিয়ে, বন্ধ করার সময় গোনা টাকা মিলিয়ে দেখুন।</p>
+            {!openShift ? (
+              <div className="box"><h3>🟢 শিফট খুলুন</h3><div className="menu-form">
+                <input type="number" placeholder="শুরুর ক্যাশ (৳)" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} />
+                <button onClick={() => { if (!shiftStart) return showToast('শুরুর ক্যাশ দিন', 'err'); upd((d) => { if (!Array.isArray(d.shifts)) d.shifts = []; d.shifts.push({ id: `sh-${Date.now()}`, date: todayStr(), openedAt: Date.now(), startingCash: Number(shiftStart), openedBy: actorName(), closedAt: null }); return d }); setShiftStart(''); showToast('শিফট খোলা হয়েছে') }}>🟢 শিফট খুলুন</button>
+              </div></div>
+            ) : (
+              <div className="box"><h3>🟢 চলমান শিফট — {new Date(openShift.openedAt).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' })} থেকে • খুলেছেন: {openShift.openedBy}</h3>
+                {(() => { const cashSales = data.bills.filter((b) => b.payment === 'Cash' && (b.createdAt || 0) >= openShift.openedAt).reduce((s, b) => s + b.total, 0); const expected = Number(openShift.startingCash || 0) + cashSales; return (<>
+                  <p>শুরুর ক্যাশ: <b>{tk(openShift.startingCash)}</b></p>
+                  <p>শিফটে Cash বিক্রি: <b>{tk(cashSales)}</b></p>
+                  <p>থাকার কথা (Expected): <b>{tk(expected)}</b></p>
+                  <div className="menu-form"><input type="number" placeholder="গোনা ক্যাশ (৳)" value={shiftCounted} onChange={(e) => setShiftCounted(e.target.value)} />
+                    <button onClick={() => { if (shiftCounted === '') return showToast('গোনা ক্যাশ দিন', 'err'); const counted = Number(shiftCounted); upd((d) => { const s = d.shifts.find((x) => x.id === openShift.id); if (s) { s.closedAt = Date.now(); s.expected = expected; s.counted = counted; s.difference = counted - expected; s.closedBy = actorName() } return d }); setShiftCounted(''); showToast(`শিফট বন্ধ হয়েছে — পার্থক্য ${tk(counted - expected)}`) }}>🔴 শিফট বন্ধ করুন</button></div>
+                  {shiftCounted !== '' && <p>পার্থক্য হবে: <b>{tk(Number(shiftCounted) - expected)}</b> {Number(shiftCounted) - expected === 0 ? '(মিলেছে ✅)' : Number(shiftCounted) - expected > 0 ? '(বেশি আছে)' : '(কম আছে)'}</p>}
+                </>) })()}
+              </div>
+            )}
+            <h3>শিফটের ইতিহাস</h3>
+            {(data.shifts || []).slice().reverse().map((s) => <div key={s.id} className="box"><b>{s.date}</b> • খুলেছেন: {s.openedBy} • শুরু: {tk(s.startingCash)} {s.closedAt ? <>• থাকার কথা ছিল: {tk(s.expected)} • গোনা: {tk(s.counted)} • পার্থক্য: <b>{tk(s.difference)}</b> {s.difference === 0 ? '✅ মিলেছে' : s.difference > 0 ? '(বেশি)' : '(কম)'} • বন্ধ করেছেন: {s.closedBy}</> : '• 🟢 এখনো খোলা'}</div>)}
+            {!(data.shifts || []).length && <p>এখনো কোনো শিফট খোলা হয়নি।</p>}
+          </section>}
+
+          {view === 'due' && <section>
+            <h2>📒 বাকি (Due)</h2>
+            <p>POS-এ Due দিয়ে বিল করলে এখানে বাকি জমা হয়। আংশিক টাকা জমা দিলে বাকি কমে, পুরো দিলে শেষ হয়।</p>
+            <p>মোট বাকি: <b>{tk(totalDueOutstanding)}</b></p>
+            {(data.dues || []).map((du) => { const rem = Math.max(0, Number(du.amount || 0) - Number(du.paid || 0)); return (<div key={du.id} className="box"><b>{du.customer}</b> • {du.table} • অর্ডার {du.orderId} • {du.date}<p>মোট: {tk(du.amount)} • জমা: {tk(du.paid || 0)} • <b>বাকি: {tk(rem)}</b> {rem === 0 ? '✅ পুরো শোধ' : ''}</p>{rem > 0 && <div className="menu-form"><input type="number" placeholder="জমা দিচ্ছে (৳)" value={duePay[du.id] || ''} onChange={(e) => setDuePay({ ...duePay, [du.id]: e.target.value })} /><button onClick={() => { const amt = Number(duePay[du.id]); if (!amt || amt <= 0) return showToast('জমার টাকা দিন', 'err'); if (amt > rem) return showToast(`বাকি ${tk(rem)}-এর বেশি জমা দেওয়া যাবে না`, 'err'); upd((d) => { const x = d.dues.find((y) => y.id === du.id); if (x) x.paid = Number(x.paid || 0) + amt; return d }); setDuePay({ ...duePay, [du.id]: '' }); showToast(`✅ ${tk(amt)} জমা হয়েছে — বাকি ${tk(rem - amt)}`) }}>💰 জমা দিন</button><button onClick={() => { upd((d) => { const x = d.dues.find((y) => y.id === du.id); if (x) x.paid = Number(x.amount); return d }); showToast('✅ পুরো বাকি শোধ হয়েছে') }}>✅ পুরো শোধ</button></div>}</div>) })}
+            {!(data.dues || []).length && <p>কোনো বাকি নেই।</p>}
+          </section>}
+
+          {view === 'voice' && <section>
+            <h2>🎙️ ভয়েস অর্ডার / বাজার / বিক্রি</h2>
+            <p>মুখে বললেই কাজ হবে — কোনো চাবি (API key) লাগে না, ব্রাউজারের নিজের Web Speech API ব্যবহার হয়।</p>
+            <p className="note">⚠️ নোট: ভয়েস চালাতে <b>Chrome ব্রাউজার + ইন্টারনেট</b> লাগবে। বাংলা বলা মাঝে মাঝে ভুল শুনতে পারে — না চিনলে আবার স্পষ্ট করে বলুন।</p>
+            {!SpeechRec && <p className="auth-err">❌ এই ব্রাউজারে ভয়েস সাপোর্ট নেই — Chrome ব্রাউজারে খুলুন।</p>}
+            <div className="chips">{[['order', '🎙️ ভয়েস অর্ডার'], ['bazar', '🛒 ভয়েস বাজার'], ['sales', '📈 ভয়েসে বিক্রি জানুন']].map(([k, l]) => <button key={k} className={voiceMode === k ? 'on' : ''} onClick={() => { setVoiceMode(k); setVoiceMsg('') }}>{l}</button>)}</div>
+            <p>{voiceMode === 'order' ? 'বলুন: "টেবিল ৫-এ দুইটা স্পেশাল মালাই চা" — আইটেম + পরিমাণ + টেবিল বললেই আসল অর্ডার তৈরি হবে।' : voiceMode === 'bazar' ? 'বলুন: "দুধ ৫ কেজি ৩০০ টাকা" — বাজার এন্ট্রি যোগ হবে।' : 'বলুন: "আজকের বিক্রি কত" — আজকের বিক্রি মুখে বলে জানাবে।'}</p>
+            <div className="menu-form"><button disabled={!SpeechRec || voiceListening} onClick={startVoice}>{voiceListening ? '🎙️ শুনছি…' : '🎙️ বলুন — মাইক চালু করুন'}</button></div>
+            {voiceText && <p>🗣️ শোনা গেছে: <b>{voiceText}</b></p>}
+            {voiceMsg && <p className="note">{voiceMsg}</p>}
+          </section>}
+
+          {view === 'branches' && <section>
+            <h2>🏬 শাখা (Branches)</h2>
+            <p>মূল শাখা: <b>দ্য ডিপ্লোমা পাস চা-ওয়ালা — মূল শাখা</b>, 1640 Narsingdi, Bangladesh। নতুন শাখা এখানে যোগ করুন — প্রতি অতিরিক্ত শাখায় প্ল্যান ৳২,০০০ / মাস।</p>
+            <div className="menu-form">
+              <input placeholder="শাখার নাম" value={newBranch.name} onChange={(e) => setNewBranch({ ...newBranch, name: e.target.value })} />
+              <input placeholder="ঠিকানা" value={newBranch.address} onChange={(e) => setNewBranch({ ...newBranch, address: e.target.value })} />
+              <button onClick={() => { if (!newBranch.name || !newBranch.address) return showToast('শাখার নাম ও ঠিকানা দিন', 'err'); upd((d) => { if (!Array.isArray(d.branches)) d.branches = []; d.branches.push({ id: `br-${Date.now()}`, name: newBranch.name, address: newBranch.address, isMain: false }); return d }); setNewBranch({ name: '', address: '' }) }}>➕ শাখা যোগ</button>
+            </div>
+            {(data.branches || []).map((b) => <div key={b.id} className="box"><b>{b.name}</b>{b.isMain ? ' ⭐ মূল শাখা' : ''}<p>{b.address}</p>{!b.isMain && <button onClick={() => { if (confirm(`"${b.name}" মুছবেন?`)) upd((d) => { d.branches = (d.branches || []).filter((x) => x.id !== b.id); return d }) }}>🗑️ মুছুন</button>}</div>)}
+            {!(data.branches || []).length && <p>কোনো শাখা নেই।</p>}
+          </section>}
+
+          {view === 'growth' && <section>
+            <h2>📈 সেলস গ্রোথ — আসল ডেটা থেকে</h2>
+            {(() => {
+              const y = new Date(Date.now() - 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
+              const yOrders = data.orders.filter((o) => o.date === y && o.status !== 'cancelled')
+              const ySale = yOrders.reduce((s, o) => s + total(o), 0)
+              const diff = todaySale - ySale
+              const topToday = popular[0]
+              const quiet = data.tables.filter((t) => !todayOrders.some((o) => o.table === t.code))
+              return (<>
+                <div className="box"><h3>💬 আজকের বার্তা</h3>
+                  <p>📊 আজকের বিক্রি <b>{tk(todaySale)}</b> — গতকাল ছিল {tk(ySale)}। {diff > 0 ? `গতকালের চেয়ে ${tk(diff)} বেশি 📈` : diff < 0 ? `গতকালের চেয়ে ${tk(-diff)} কম 📉` : 'গতকালের সমান।'}</p>
+                  <p>🔥 আজকের টপ আইটেম: <b>{topToday ? `${topToday[0]} — ${bnNum(topToday[1])}টি` : 'এখনো অর্ডার নেই'}</b></p>
+                  <p>🪑 আজ এখনো অর্ডার আসেনি এমন টেবিল: <b>{quiet.length ? quiet.map((t) => t.code).join(', ') : 'সব টেবিলেই অর্ডার এসেছে 🎉'}</b>{quiet.length ? ' — এই টেবিলগুলোতে কাস্টমার বসানোর দিকে নজর দিন।' : ''}</p>
+                  <p>🧾 আজ মোট অর্ডার <b>{bnNum(todayOrders.length)}টি</b> (গতকাল {bnNum(yOrders.length)}টি)।</p>
+                </div>
+              </>)
+            })()}
+            <p className="note">এই বার্তাগুলো আপনার আসল অর্ডার ডেটা থেকে হিসাব করা — কোনো বানানো সংখ্যা নয়।</p>
+          </section>}
+
+          {view === 'sop' && <section>
+            <h2>📋 SOP — দোকান চালানোর নিয়ম</h2>
+            <p>প্রতিদিনের কাজের ধাপ — মালিক চাইলে নিচে বদলে সংরক্ষণ করতে পারেন।</p>
+            <ol>{(data.settings.sop || DEFAULT_SOP).split('\n').filter(Boolean).map((line, i) => <li key={i}>{line.replace(/^\d+\.\s*/, '')}</li>)}</ol>
+            {isOwner() && <div className="box"><h3>✏️ SOP বদলান</h3><textarea rows={8} style={{ width: '100%', padding: 10, border: '1px solid #d8c690', borderRadius: 8 }} value={sopDraft} onChange={(e) => setSopDraft(e.target.value)} /><div className="menu-form"><button onClick={() => { upd((d) => { d.settings.sop = sopDraft; return d }); showToast('SOP সংরক্ষিত হয়েছে') }}>💾 সংরক্ষণ করুন</button></div></div>}
+          </section>}
+
+          {view === 'salary' && <section>
+            <h2>💰 বেতন — {new Date().toLocaleDateString('bn-BD', { month: 'long', year: 'numeric' })}</h2>
+            <p>প্রতি স্টাফের এই মাসের বেতন লিখুন, টাকা দিলে "দেওয়া হয়েছে" চাপুন।</p>
+            {data.staff.map((s) => { const rec = (data.salaries || []).find((x) => x.staffId === s.id && x.month === monthKey); const amt = salaryAmt[s.id] ?? rec?.amount ?? ''; return (<div key={s.id} className="box"><b>{s.name}</b> — {s.role}<div className="menu-form"><input type="number" placeholder="মাসিক বেতন (৳)" value={amt} onChange={(e) => setSalaryAmt({ ...salaryAmt, [s.id]: e.target.value })} /><button onClick={() => { const a = Number(salaryAmt[s.id] ?? rec?.amount ?? 0); if (!a) return showToast('বেতনের টাকা দিন', 'err'); upd((d) => { if (!Array.isArray(d.salaries)) d.salaries = []; const x = d.salaries.find((y) => y.staffId === s.id && y.month === monthKey); if (x) x.amount = a; else d.salaries.push({ id: `sal-${Date.now()}`, staffId: s.id, month: monthKey, amount: a, paid: false }); return d }); showToast(`${s.name}-এর বেতন ${tk(a)} সংরক্ষিত হয়েছে`) }}>💾 সংরক্ষণ</button>{rec && <button onClick={() => upd((d) => { const x = d.salaries.find((y) => y.id === rec.id); if (x) x.paid = !x.paid; return d })}>{rec.paid ? '✅ দেওয়া হয়েছে — বাতিল করুন' : '💰 দেওয়া হয়েছে চাপুন'}</button>}</div>{rec && <p>বেতন: <b>{tk(rec.amount)}</b> • স্ট্যাটাস: <b>{rec.paid ? '✅ দেওয়া হয়েছে' : '⏳ বাকি'}</b></p>}</div>) })}
+            <p>এই মাসে মোট বেতন: <b>{tk((data.salaries || []).filter((x) => x.month === monthKey).reduce((s, x) => s + Number(x.amount || 0), 0))}</b> • দেওয়া হয়েছে: <b>{tk((data.salaries || []).filter((x) => x.month === monthKey && x.paid).reduce((s, x) => s + Number(x.amount || 0), 0))}</b> • বাকি: <b>{tk((data.salaries || []).filter((x) => x.month === monthKey && !x.paid).reduce((s, x) => s + Number(x.amount || 0), 0))}</b></p>
+          </section>}
+
+
           {view === 'settings' && <section>
             <h2>⚙️ সেটিংস</h2>
             <div className="form">
@@ -893,7 +1125,8 @@ export default function App() {
             <div className="box"><h3>বর্তমান প্ল্যান: {data.plan.type === 'trial' ? 'ট্রায়াল' : 'মাসিক'}</h3>
               <p>মাসিক: <b>৳২,০০০ / মাস</b> • বার্ষিক: <b>৳২০,০০০ / বছর</b> (২ মাস ফ্রি)</p>
               <p>যা যা থাকছে:</p>
-              <ul><li>মেনু, টেবিল + QR, কাস্টমার অর্ডার</li><li>কিচেন ডিসপ্লে (KDS), POS + বিল</li><li>রিপোর্ট, অ্যানালিটিক্স, খরচ ও দিনের হিসাব</li><li>স্টাফ, ছুটি, স্টক, কুপন, মেম্বার, বুকিং, ডেলিভারি, ক্যাটারিং, রিভিউ</li></ul>
+              <ul><li>মেনু, টেবিল + QR, কাস্টমার অর্ডার</li><li>কিচেন ডিসপ্লে (KDS), POS + বিল</li><li>রিপোর্ট, অ্যানালিটিক্স, খরচ ও দিনের হিসাব</li><li>স্টাফ, ছুটি, স্টক, কুপন, মেম্বার, বুকিং, ডেলিভারি, ক্যাটারিং, রিভিউ</li><li>ভয়েস অর্ডার, বাজার, ভেন্ডর, শিফট/ক্যাশ ড্রয়ার, বাকি (Due), বেতন, শাখা, সেলস গ্রোথ</li></ul>
+              <p>🏬 শাখা: প্রতিটি অতিরিক্ত শাখার জন্য <b>৳২,০০০ / মাস</b>। বর্তমানে <b>{bnNum((data.branches || []).length)}টি শাখা</b> আছে — শাখা পাতা থেকে নতুন শাখা যোগ করুন।</p>
               <p>💳 পেমেন্ট: ম্যানুয়াল — bKash / Nagad-এ পাঠিয়ে মালিককে জানান, মালিক হাতে প্ল্যান চালু করবেন। এই ভার্সনে অনলাইন পেমেন্ট গেটওয়ে নেই।</p>
               {data.plan.type === 'trial' && <button onClick={() => { if (confirm('মাসিক প্ল্যানে যাবেন? পেমেন্ট ম্যানুয়ালি করতে হবে।')) upd((d) => { d.plan = { type: 'monthly', price: 2000 }; return d }) }}>💎 মাসিক প্ল্যানে যান (৳২,০০০/মাস)</button>}
               {data.plan.type === 'monthly' && <p className="note">✅ মাসিক প্ল্যান চালু আছে।</p>}
