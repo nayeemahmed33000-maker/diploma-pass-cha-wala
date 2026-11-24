@@ -26,6 +26,11 @@
 .print-only{display:none}
 .qr-actions{justify-content:center}
 .btn-danger{background:#c0392b!important;color:#fff!important;border-color:#c0392b!important}
+.btn-brown{background:var(--brown)!important;color:#fff!important;border-color:var(--brown)!important}
+.add-table-form{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+.add-table-form .row{display:flex;gap:8px;flex-wrap:wrap}
+.add-table-form input{padding:9px;border:1px solid #d8c690;border-radius:8px;font-size:15px}
+.add-table-form input[type=number]{width:90px}
 .menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
 .menu-item{background:#fff;border:1px solid #e8d9b0;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px}
 .qty{display:flex;gap:10px;align-items:center}.qty button{width:32px;height:32px;border-radius:50%;border:1px solid var(--gold);background:var(--cream);cursor:pointer;font-size:18px}
