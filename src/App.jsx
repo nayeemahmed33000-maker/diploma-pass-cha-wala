@@ -13,7 +13,7 @@ function hashPw(pw) { let h = 5381; for (let i = 0; i < pw.length; i++) h = ((h 
 function seedUsers() { return [{ id: 'u-owner', name: 'Owner', email: 'owner@diplomacha.com', pwHash: hashPw('123456'), role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', created: todayStr() }] }
 function loadUsers() { try { const d = JSON.parse(localStorage.getItem(USERS_KEY)); if (Array.isArray(d) && d.length) return d } catch { /* fall through to seed */ } const s = seedUsers(); try { localStorage.setItem(USERS_KEY, JSON.stringify(s)) } catch { /* ignore */ } return s }
 function loadSession() { try { return localStorage.getItem(SESSION_KEY) || '' } catch { return '' } }
-const VERSION = 'v1.6.3 — Bponi Parity'
+const VERSION = 'v1.6.4 — Bponi Parity'
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
 const dhakaLong = (d = new Date()) => d.toLocaleDateString('bn-BD', { timeZone: 'Asia/Dhaka', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const realPhone = (phone) => (phone && phone !== '01900-000000' ? phone : '')
@@ -462,11 +462,11 @@ export default function App() {
   const lastOrderObj = data.orders.find((o) => o.id === lastOrder)
   const kdsOrders = data.orders.filter((o) => ['new', 'confirmed', 'ready'].includes(o.status))
 
-  const PAGE_PERM = { menu: 'menu', tables: 'tables', scan: 'menu', orders: 'order', pos: 'pos', kitchen: 'kitchen', delivery: 'order', catering: 'order', members: 'order', reviews: 'order', bookings: 'order', money: 'reports', reports: 'reports', analytics: 'reports', expenses: 'reports', dayclose: 'pos', staff: 'staff', leave: 'staff', stock: 'menu', offers: 'pos', settings: null, bazar: 'reports', vendors: 'reports', shift: 'pos', due: 'pos', voice: 'order', branches: null, growth: 'reports', sop: null, salary: 'staff', alltools: null }
+  const PAGE_PERM = { menu: 'menu', tables: 'tables', orders: 'order', pos: 'pos', kitchen: 'kitchen', delivery: 'order', catering: 'order', members: 'order', reviews: 'order', bookings: 'order', money: 'reports', reports: 'reports', analytics: 'reports', expenses: 'reports', dayclose: 'pos', staff: 'staff', leave: 'staff', stock: 'menu', offers: 'pos', settings: null, bazar: 'reports', vendors: 'reports', shift: 'pos', due: 'pos', voice: 'order', branches: null, growth: 'reports', sop: null, salary: 'staff', alltools: null }
   // Sidebar — exactly the screenshot's menu (CafePilot SIDEBAR, same groups, order and labels).
   // Screenshot items first in each group; Diploma extras kept after them inside the matching group.
   const NAV_GROUPS = [
-    { key: 'menu', label: 'মেনু ও টেবিল', items: [['menu', '🍽️ মেনু'], ['tables', '🪑 টেবিল ও QR'], ['scan', '📸 মেনু স্ক্যান']] },
+    { key: 'menu', label: 'মেনু ও টেবিল', items: [['menu', '🍽️ মেনু'], ['tables', '🪑 টেবিল ও QR']] },
     { key: 'sell', label: 'বিক্রি', items: [['orders', '🧾 অর্ডার'], ['pos', '💰 POS / বিল'], ['kitchen', '👨‍🍳 কিচেন ডিসপ্লে'], ['voice', '🎙️ ভয়েস অর্ডার']] },
     { key: 'customer', label: 'কাস্টমার', items: [['members', '👤 মেম্বার ও পয়েন্ট'], ['reviews', '⭐ রিভিউ ও গাইড'], ['customer', '🛒 কাস্টমার মেনু'], ['bookings', '📅 বুকিং']] },
     { key: 'money', label: 'টাকা ও হিসাব', items: [['money', '💵 টাকা ও হিসাব'], ['reports', '📈 রিপোর্ট ও অ্যানালিটিকস'], ['offers', '🎁 অফার ও কুপন'], ['analytics', '📊 অ্যানালিটিকস'], ['expenses', '💸 খরচ'], ['vendors', '🏪 ভেন্ডর'], ['shift', '💵 ক্যাশ ড্রয়ার / শিফট'], ['due', '📒 বাকি (Due)'], ['dayclose', '🌙 দিনের হিসাব বন্ধ']] },
@@ -535,7 +535,7 @@ export default function App() {
             </div>
           </header>
           <section className="feature-grid">
-            {[['📸 মেনু স্ক্যান', 'ছবি থেকে মেনু অটো-অ্যাড'], ['🪑 QR মেনু', 'টেবিলের QR স্ক্যান করলেই অর্ডার'], ['🧾 অর্ডার', 'নতুন থেকে বিল পেইড পর্যন্ত ট্র্যাক'], ['👨‍🍳 কিচেন (KDS)', 'স্টেশন অনুযায়ী কাজ ভাগ'], ['💰 POS + বিল', 'বিল নং, ভ্যাট, কুপন, প্রিন্ট'], ['📊 রিপোর্ট', 'বিক্রি, অ্যানালিটিক্স, দিনের হিসাব']].map(([t, d]) => <div key={t} className="feature-card"><b>{t}</b><span>{d}</span></div>)}
+            {[['📸 ছবি থেকে মেনু', 'মেনুর ছবি থেকে আইটেম অটো-অ্যাড'], ['🪑 QR মেনু', 'টেবিলের QR স্ক্যান করলেই অর্ডার'], ['🧾 অর্ডার', 'নতুন থেকে বিল পেইড পর্যন্ত ট্র্যাক'], ['👨‍🍳 কিচেন (KDS)', 'স্টেশন অনুযায়ী কাজ ভাগ'], ['💰 POS + বিল', 'বিল নং, ভ্যাট, কুপন, প্রিন্ট'], ['📊 রিপোর্ট', 'বিক্রি, অ্যানালিটিক্স, দিনের হিসাব']].map(([t, d]) => <div key={t} className="feature-card"><b>{t}</b><span>{d}</span></div>)}
           </section>
           <footer>© {new Date().getFullYear()} {data.settings.shop} • {data.settings.address} • {VERSION}</footer>
         </div>
@@ -660,6 +660,35 @@ export default function App() {
 
           {view === 'menu' && <section>
             <h2>🍵 মেনু ম্যানেজমেন্ট — {bnNum(data.menu.filter((m) => m.active).length)}টি আইটেম</h2>
+          <div className="box">
+            <h3>📸 ছবি থেকে মেনু যোগ করুন</h3>
+            <p>মেনুর ছবি তুলুন বা আপলোড করুন — ছবি থেকে আইটেম পড়ে <b>সরাসরি মেনুতে যোগ হয়ে যাবে</b>, কোনো কনফার্ম লাগবে না। ভুল আইটেম ঢুকলে মেনু পাতা থেকে মুছে ফেলবেন।</p>
+            <div className="box">
+              <div className="menu-form">
+                <label className="file-btn">📷 ছবি তুলুন / বেছে নিন
+                  <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (!f) return; setScanFile(f); setScanResult(null); setScanError(''); try { setScanPreview(URL.createObjectURL(f)) } catch { setScanPreview('') } }} />
+                </label>
+                <button disabled={scanBusy || !scanFile} onClick={runScanPhoto}>{scanBusy ? '⏳ স্ক্যান চলছে…' : '🔍 স্ক্যান করুন — আইটেম নিজে থেকে যোগ হবে'}</button>
+              </div>
+              {scanPreview && <div className="scan-preview"><img src={scanPreview} alt="মেনুর ছবি" /></div>}
+              {scanBusy && <div className="scan-progress"><div className="scan-bar" style={{ width: `${scanProgress}%` }} /><p>{scanStatus || `স্ক্যান চলছে… ${scanProgress}%`}</p></div>}
+              {scanError && <p className="auth-err">{scanError}</p>}
+              {scanResult && <div className="box scan-result">
+                <h3>✅ স্ক্যান শেষ</h3>
+                <p>➕ মেনুতে যোগ হয়েছে: <b>{bnNum(scanResult.added)}টি</b></p>
+                <p>🔁 আগে থেকেই ছিল (বাদ দেওয়া হয়েছে): <b>{bnNum(scanResult.duplicates)}টি</b></p>
+                <p>🚫 দাম পাওয়া যায়নি / বাদ পড়েছে: <b>{bnNum(scanResult.dropped)}টি</b> লাইন</p>
+                {scanResult.items.length > 0 && <ul>{scanResult.items.map((it, i) => <li key={i}>{it.name} — {it.cat} — {tk(it.price)}</li>)}</ul>}
+              </div>}
+              <p className="note">💡 ভালো ফলের টিপস: পরিষ্কার আলোতে সোজা করে ছবি তুলুন, লেখা বড় ও পরিষ্কার রাখুন। OCR মাঝে মাঝে ১-২ অক্ষর ভুল পড়ে (যেমন কোল্ড → কোক্ত) — মেনু পাতায় গিয়ে নাম ঠিক করে নেবেন। বাংলা হাতের লেখা ও খুব ছোট ফন্টে কম আইটেম পেতে পারে। ইংরেজি সংখ্যা (50, 120) বাংলা সংখ্যার (৫০, ১২০) চেয়ে ভালো পড়ে। প্রথমবার OCR মডেল ডাউনলোড হতে একটু সময় লাগবে।</p>
+            </div>
+            <div className="box">
+              <h3>⌨️ অথবা লেখা বসিয়ে স্ক্যান করুন</h3>
+              <p>ছবি না থাকলে মেনুর লেখা এখানে বসান — এক লাইনে এক আইটেম, শেষে দাম (যেমন: মসলা চা ৩৫)।</p>
+              <textarea rows={5} style={{ width: '100%', padding: 10, border: '1px solid #d8c690', borderRadius: 8 }} placeholder={'স্পেশাল মালাই চা ৫০\nমসলা চা ৩৫\nকোল্ড কফি ১২০'} value={scanText} onChange={(e) => setScanText(e.target.value)} />
+              <div className="menu-form"><button disabled={scanBusy || !scanText.trim()} onClick={async () => { setScanError(''); setScanResult(null); setScanBusy(true); try { await runScanFromText(scanText) } finally { setScanBusy(false) } }}>🔍 লেখা থেকে আইটেম যোগ করুন</button></div>
+            </div>
+          </div>
             <div className="chips">{['সব', ...CATS].map((c) => <button key={c} className={cat === c ? 'on' : ''} onClick={() => setCat(c)}>{c}</button>)}</div>
             <div className="menu-form">
               <input placeholder="নতুন আইটেমের নাম" value={newItem.name} onChange={(e) => setNewItem({ ...newItem, name: e.target.value })} />
@@ -681,36 +710,6 @@ export default function App() {
             {selTable && <div className="box"><h3>🧾 {selTable} — চলমান বিল</h3>{openOrdersFor(selTable).map((o) => <p key={o.id}><b>{o.id}</b> • {STATUS[o.status]} • {o.items.map((i) => `${i.name} × ${i.qty}`).join(', ')} • <b>{tk(total(o))}</b> <button onClick={() => makeBill(o)}>🧾 বিল করুন</button></p>)}{!openOrdersFor(selTable).length && <p>এই টেবিলে কোনো খোলা অর্ডার নেই।</p>}<p><b>মোট চলমান বিল: {tk(tableRunningTotal(selTable))}</b></p><button onClick={() => setSelTable('')}>✕ বন্ধ</button></div>}
           </section>}
 
-          {view === 'scan' && <section>
-            <h2>📸 মেনু স্ক্যান — ছবি থেকে মেনু অটো-অ্যাড</h2>
-            <p>মেনুর ছবি তুলুন বা আপলোড করুন — ছবি থেকে আইটেম পড়ে <b>সরাসরি মেনুতে যোগ হয়ে যাবে</b>, কোনো কনফার্ম লাগবে না। ভুল আইটেম ঢুকলে মেনু পাতা থেকে মুছে ফেলবেন।</p>
-            <div className="box">
-              <div className="menu-form">
-                <label className="file-btn">📷 ছবি তুলুন / বেছে নিন
-                  <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (!f) return; setScanFile(f); setScanResult(null); setScanError(''); try { setScanPreview(URL.createObjectURL(f)) } catch { setScanPreview('') } }} />
-                </label>
-                <button disabled={scanBusy || !scanFile} onClick={runScanPhoto}>{scanBusy ? '⏳ স্ক্যান চলছে…' : '🔍 স্ক্যান করুন — আইটেম নিজে থেকে যোগ হবে'}</button>
-              </div>
-              {scanPreview && <div className="scan-preview"><img src={scanPreview} alt="মেনুর ছবি" /></div>}
-              {scanBusy && <div className="scan-progress"><div className="scan-bar" style={{ width: `${scanProgress}%` }} /><p>{scanStatus || `স্ক্যান চলছে… ${scanProgress}%`}</p></div>}
-              {scanError && <p className="auth-err">{scanError}</p>}
-              {scanResult && <div className="box scan-result">
-                <h3>✅ স্ক্যান শেষ</h3>
-                <p>➕ মেনুতে যোগ হয়েছে: <b>{bnNum(scanResult.added)}টি</b></p>
-                <p>🔁 আগে থেকেই ছিল (বাদ দেওয়া হয়েছে): <b>{bnNum(scanResult.duplicates)}টি</b></p>
-                <p>🚫 দাম পাওয়া যায়নি / বাদ পড়েছে: <b>{bnNum(scanResult.dropped)}টি</b> লাইন</p>
-                {scanResult.items.length > 0 && <ul>{scanResult.items.map((it, i) => <li key={i}>{it.name} — {it.cat} — {tk(it.price)}</li>)}</ul>}
-                <button onClick={() => setView('menu')}>🍵 মেনু পাতায় দেখুন →</button>
-              </div>}
-              <p className="note">💡 ভালো ফলের টিপস: পরিষ্কার আলোতে সোজা করে ছবি তুলুন, লেখা বড় ও পরিষ্কার রাখুন। OCR মাঝে মাঝে ১-২ অক্ষর ভুল পড়ে (যেমন কোল্ড → কোক্ত) — মেনু পাতায় গিয়ে নাম ঠিক করে নেবেন। বাংলা হাতের লেখা ও খুব ছোট ফন্টে কম আইটেম পেতে পারে। ইংরেজি সংখ্যা (50, 120) বাংলা সংখ্যার (৫০, ১২০) চেয়ে ভালো পড়ে। প্রথমবার OCR মডেল ডাউনলোড হতে একটু সময় লাগবে।</p>
-            </div>
-            <div className="box">
-              <h3>⌨️ অথবা লেখা বসিয়ে স্ক্যান করুন</h3>
-              <p>ছবি না থাকলে মেনুর লেখা এখানে বসান — এক লাইনে এক আইটেম, শেষে দাম (যেমন: মসলা চা ৩৫)।</p>
-              <textarea rows={5} style={{ width: '100%', padding: 10, border: '1px solid #d8c690', borderRadius: 8 }} placeholder={'স্পেশাল মালাই চা ৫০\nমসলা চা ৩৫\nকোল্ড কফি ১২০'} value={scanText} onChange={(e) => setScanText(e.target.value)} />
-              <div className="menu-form"><button disabled={scanBusy || !scanText.trim()} onClick={async () => { setScanError(''); setScanResult(null); setScanBusy(true); try { await runScanFromText(scanText) } finally { setScanBusy(false) } }}>🔍 লেখা থেকে আইটেম যোগ করুন</button></div>
-            </div>
-          </section>}
 
           {view === 'customer' && customerView}
 
