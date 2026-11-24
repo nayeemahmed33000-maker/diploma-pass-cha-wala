@@ -34,4 +34,18 @@
 .bill{text-align:center;max-width:380px;margin:0 auto}
 footer{text-align:center;color:#888;padding:18px;font-size:13px}
 @media print{body *{visibility:hidden}.print-area,.print-area *{visibility:visible}.print-area{position:absolute;left:0;top:0;width:100%}}
+.auth-wrap{display:flex;justify-content:center;padding:24px 12px}
+.auth-card{background:#fff;border:2px solid var(--gold);border-radius:16px;padding:24px;max-width:460px;width:100%;text-align:center;box-shadow:0 6px 24px rgba(43,26,14,.12)}
+.auth-card h1{margin:10px 0 4px;color:var(--brown);font-size:24px}.auth-card p{margin:4px 0;color:#666}
+.auth-logo{width:110px;height:110px;margin:0 auto}
+.auth-tabs{display:flex;gap:8px;margin:18px 0}
+.auth-tabs button{flex:1;border:1px solid var(--gold);background:var(--cream);color:var(--brown);padding:10px;border-radius:20px;cursor:pointer;font-weight:700;font-size:15px}
+.auth-tabs button.on{background:var(--brown);color:var(--gold)}
+.auth-form{text-align:left;margin:0 auto}
+.auth-form input,.auth-form select{padding:10px;border:1px solid #d8c690;border-radius:8px;font-size:15px;width:100%}
+.auth-form button{border:none;background:var(--brown);color:var(--gold);padding:12px;border-radius:20px;font-weight:700;cursor:pointer;font-size:16px}
+.auth-err{background:#fde8e8;border:1px solid #e57373;color:#a00;padding:10px;border-radius:10px}
+.auth-ok{background:#e8f5e9;border:1px solid #81c784;color:#2e7d32;padding:10px;border-radius:10px}
+.auth-foot{font-size:13px}
+.head-right button{border:1px solid var(--gold);background:transparent;color:var(--gold);padding:6px 12px;border-radius:20px;cursor:pointer;font-weight:700}
 @media(max-width:640px){.header{flex-direction:column;text-align:center}.head-right{margin:0;text-align:center}.header h1{font-size:19px}}
