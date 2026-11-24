@@ -1,13 +1,21 @@
 # দ্য ডিপ্লোমা পাস চা-ওয়ালা — Cafe Management System
 
-Vercel-ready cafe management system. Vite + React, static, no server, no database, no Cloudflare code.
+**Version: v1.5.0 — Professional.** The version string is shown in the sidebar footer, the app footer, the customer footer, and the login screen footer, so a fresh live check can prove the new version reached the device.
 
-Live brand: **দ্য ডিপ্লোমা পাস চা-ওয়ালা / Diploma Pass Cha-Wala**
-Logo: `public/logo.jpg` (copied from the supplied logo file) — also used as favicon and header logo.
-Theme: dark brown `#2b1a0e`, gold `#d4a94e`, cream. Full Bangla UI, BDT prices.
+## Landing page (before login)
+The app now opens on a landing page, not straight on the login form: hero with the logo, name, tagline "চা, গল্প, আড্ডা", address "1640 Narsingdi, Bangladesh", opening time, feature cards (Menu Scan, QR Menu, Orders, Kitchen, POS + Bill, Reports), pricing note (৳2,000/month, yearly ৳20,000), and three buttons — Login, Sign Up, and Customer Menu (opens the QR customer menu with no login). Login / Sign Up is the auth screen reached from the landing page; logging out returns to the landing page.
 
-## Login / Sign Up — first screen
-The app opens on a Login / Sign Up screen (Bangla, logo on top, brown/gold theme), not the dashboard.
+## Professional polish (v1.5.0)
+- Toasts instead of browser `alert()` popups for order, bill, coupon, review, settings, and validation messages (Bangla, auto-dismiss); `confirm()` is kept before delete / cancel / cart-clear / day-close.
+- Consistent branding: logo in the landing hero, header, sidebar, login card, bill, and every QR card (shop name + address on the QR card).
+- Phone number: the Settings value `01900-000000` is only a **placeholder** — it is labelled as such in Settings, warned about there, and is **never printed on bills or QR cards** as if it were real. A real phone number from Sir is still needed.
+- Bill print: 58mm (default) / 80mm paper-size selector, saved per device; print CSS hides buttons and shows only the bill (58mm) or the QR cards (A4).
+- Dates use Dhaka time (`Asia/Dhaka`) for "today" and dashboard dates, so late-night bills count on the right Dhaka day.
+- Empty states everywhere ("আজ এখনো কোনো অর্ডার নেই।", "এই ক্যাটাগরিতে কোনো চালু আইটেম নেই।", etc.), focus-visible outlines, disabled-button states, long Bengali text wrapping, and mobile-first responsive layout (sidebar becomes a horizontal scroll nav under 820px, 2-column grids under 640px, 1-column under 420px).
+- Footer on every view: © year, shop name, address, version string.
+
+## Login / Sign Up — reached from the landing page
+The app opens on the landing page; Login / Sign Up is the auth screen reached from it (Bangla, logo on top, brown/gold theme), not the dashboard.
 - **লগইন** tab: email + password. Wrong email/password shows a clear Bangla error. On success it goes straight to the Dashboard.
 - **সাইন আপ** tab: name, email, password, confirm password, role (Owner / Staff), shop name. Validates email format, password at least 6 characters, passwords match, and email not already registered. On success the account is created and the user is logged straight in to the Dashboard.
 - Accounts are stored in browser localStorage (key `dpcw-users-v1`, separate from the shop data key `dpcw-v1`). Passwords are stored only as a simple hash, never plain text.
@@ -56,6 +64,7 @@ All data is stored in the browser's `localStorage` (key `dpcw-v1`; POS draft in 
 ## Honest limits (backend-only, not faked as working)
 - **Multi-device sync** — data is localStorage-only on this device (see the note on Settings / Dashboard). Real sync needs a shared database/backend.
 - **Payments** — bKash / Nagad / Card are recorded manually on the bill only; there is no payment-gateway integration. Plan payment is manual as well.
+- **Still needed from Sir:** the real shop phone number. Settings currently holds the placeholder `01900-000000`, which is never printed on bills or QR cards.
 
 ## Run locally
 ```bash
