@@ -160,3 +160,10 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .cards{grid-template-columns:1fr}
   .feature-grid{grid-template-columns:1fr}
 }
+
+/* --- v1.6.0 Bponi parity --- */
+.wait-fresh{border-left:6px solid #2e7d32}
+.wait-amber{border-left:6px solid #f9a825;background:#fffde7}
+.wait-red{border-left:6px solid #c62828;background:#fdecea}
+.kds-ticket{margin:8px 0}
+.quick-bill{background:var(--brown)!important;color:var(--gold)!important;padding:14px 18px!important;font-size:16px;border-radius:14px!important;line-height:1.5}
