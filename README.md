@@ -6,6 +6,16 @@ Live brand: **দ্য ডিপ্লোমা পাস চা-ওয়া�
 Logo: `public/logo.jpg` (copied from the supplied logo file) — also used as favicon and header logo.
 Theme: dark brown `#2b1a0e`, gold `#d4a94e`, cream. Full Bangla UI, BDT prices.
 
+## Login / Sign Up — first screen
+The app opens on a Login / Sign Up screen (Bangla, logo on top, brown/gold theme), not the dashboard.
+- **লগইন** tab: email + password. Wrong email/password shows a clear Bangla error. On success it goes straight to the Dashboard.
+- **সাইন আপ** tab: name, email, password, confirm password, role (Owner / Staff), shop name. Validates email format, password at least 6 characters, passwords match, and email not already registered. On success the account is created and the user is logged straight in to the Dashboard.
+- Accounts are stored in browser localStorage (key `dpcw-users-v1`, separate from the shop data key `dpcw-v1`). Passwords are stored only as a simple hash, never plain text.
+- The header shows the logged-in user's name + role, with a **লগআউট** button that returns to the Auth screen. Logging out does NOT erase menu/orders data.
+- The existing demo staff PIN login still works inside the app (Staff page → KDS), email/password is the main first-screen login.
+- Customer QR menu view (`?table=T-xx`) still works WITHOUT login — customers do not log in.
+- Seeded owner account (for Sir to log in immediately): email `owner@diplomacha.com`, password `123456`, name "Owner", role Owner. Change the password after first login by creating a new owner account if needed — this demo seed is in the code, not shown on the public login screen.
+
 ## Features
 1. Owner dashboard — today's total sell, total orders, pending/ready, popular items
 2. Menu management — add/edit (active on/off)/delete, 6 categories, seeded with 26 items: Dudh Cha 7, Rong Cha 5, Coffee 3, Mocktail 3, Lassi 1, Snacks 7 (Malai Cha first)
