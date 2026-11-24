@@ -13,7 +13,7 @@ function hashPw(pw) { let h = 5381; for (let i = 0; i < pw.length; i++) h = ((h 
 function seedUsers() { return [{ id: 'u-owner', name: 'Owner', email: 'owner@diplomacha.com', pwHash: hashPw('123456'), role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', created: todayStr() }] }
 function loadUsers() { try { const d = JSON.parse(localStorage.getItem(USERS_KEY)); if (Array.isArray(d) && d.length) return d } catch { /* fall through to seed */ } const s = seedUsers(); try { localStorage.setItem(USERS_KEY, JSON.stringify(s)) } catch { /* ignore */ } return s }
 function loadSession() { try { return localStorage.getItem(SESSION_KEY) || '' } catch { return '' } }
-const VERSION = 'v1.6.9 — Bponi Parity'
+const VERSION = 'v1.7.0 — Bponi Parity'
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
 const dhakaLong = (d = new Date()) => d.toLocaleDateString('bn-BD', { timeZone: 'Asia/Dhaka', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const realPhone = (phone) => (phone && phone !== '01900-000000' ? phone : '')
@@ -191,7 +191,6 @@ export default function App() {
   const [newBranch, setNewBranch] = useState({ name: '', address: '' })
   const [shiftStart, setShiftStart] = useState('')
   const [shiftCounted, setShiftCounted] = useState('')
-  const [selTable, setSelTable] = useState('')
   const [printTable, setPrintTable] = useState('')
   const [duePay, setDuePay] = useState({})
   const [salaryAmt, setSalaryAmt] = useState({})
@@ -730,8 +729,7 @@ export default function App() {
             <h2>🪑 টেবিল + QR — {bnNum(data.tables.length)}টি টেবিল</h2>
             <p>কাস্টমার টেবিলের QR স্ক্যান করলেই ওই টেবিলের মেনু খুলবে। QR প্রিন্ট করে টেবিলে লাগান।</p>
             <div className="add-table-form no-print"><b>+ নতুন টেবিল</b><div className="row"><input placeholder={nextTableCode()} value={newTable} onChange={(e) => setNewTable(e.target.value)} /><input type="number" min="1" max="20" placeholder="সিট" value={newTableSeats} onChange={(e) => setNewTableSeats(e.target.value)} /><button className="btn-brown" onClick={addTable}>টেবিল যোগ করুন</button></div><div className="row"><button onClick={() => window.print()}>🖨️ সব QR প্রিন্ট</button></div></div>
-            <div className="qr-grid print-area">{data.tables.map((t) => { const url = `${baseUrl}?table=${t.code}`; return (<div key={t.code} className={`qr-card${printTable === t.code ? ' print-one' : ''}`}><div className="qr-print-head print-only"><img src="/logo.jpg" alt="" className="qr-print-logo" /><div><b>{data.settings.shop}</b><small>{data.settings.address}</small></div></div><b className="qr-head">{t.name}<span className="qr-seats"> • {bnNum(t.seats || 5)} সিট</span></b><div className="qr-box"><QRCodeSVG value={url} size={180} /></div><small className="qr-url">{url}</small><p className="qr-print-cta print-only">QR স্ক্যান করে অর্ডার করুন</p><div className="row qr-actions no-print"><button onClick={() => copyTableLink(url)}>🔗 লিংক কপি</button><button onClick={() => printOneTable(t.code)}>🖨️ QR প্রিন্ট</button><button className="btn-danger" onClick={() => { if (confirm(`${t.name} (${t.code}) মুছবেন?`)) upd((d) => { d.tables = d.tables.filter((x) => x.code !== t.code); return d }) }}>🗑️ মুছুন</button></div><span className="no-print">💰 চলমান বিল: <b>{tk(tableRunningTotal(t.code))}</b> ({bnNum(openOrdersFor(t.code).length)}টি খোলা অর্ডার)</span><div className="row no-print"><button onClick={() => setSelTable(t.code)}>🧾 চলমান বিল দেখুন</button><button onClick={() => { setCustTable(t.code); setView('customer') }}>কাস্টমার মেনু দেখুন →</button></div></div>) })}</div>
-            {selTable && <div className="box"><h3>🧾 {selTable} — চলমান বিল</h3>{openOrdersFor(selTable).map((o) => <p key={o.id}><b>{o.id}</b> • {STATUS[o.status]} • {o.items.map((i) => `${i.name} × ${i.qty}`).join(', ')} • <b>{tk(total(o))}</b> <button onClick={() => makeBill(o)}>🧾 বিল করুন</button></p>)}{!openOrdersFor(selTable).length && <p>এই টেবিলে কোনো খোলা অর্ডার নেই।</p>}<p><b>মোট চলমান বিল: {tk(tableRunningTotal(selTable))}</b></p><button onClick={() => setSelTable('')}>✕ বন্ধ</button></div>}
+            <div className="qr-grid print-area">{data.tables.map((t) => { const url = `${baseUrl}?table=${t.code}`; return (<div key={t.code} className={`qr-card${printTable === t.code ? ' print-one' : ''}`}><div className="qr-print-head print-only"><img src="/logo.jpg" alt="" className="qr-print-logo" /><div><b>{data.settings.shop}</b><small>{data.settings.address}</small></div></div><b className="qr-head">{t.name}<span className="qr-seats"> • {bnNum(t.seats || 5)} সিট</span></b><div className="qr-box"><QRCodeSVG value={url} size={180} /></div><small className="qr-url">{url}</small><p className="qr-print-cta print-only">QR স্ক্যান করে অর্ডার করুন</p><div className="row qr-actions no-print"><button onClick={() => copyTableLink(url)}>🔗 লিংক কপি</button><button onClick={() => printOneTable(t.code)}>🖨️ QR প্রিন্ট</button><button className="btn-danger" onClick={() => { if (confirm(`${t.name} (${t.code}) মুছবেন?`)) upd((d) => { d.tables = d.tables.filter((x) => x.code !== t.code); return d }) }}>🗑️ মুছুন</button></div></div>) })}</div>
           </section>}
 
 
