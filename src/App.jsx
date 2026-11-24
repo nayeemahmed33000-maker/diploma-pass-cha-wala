@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
+import Tesseract from 'tesseract.js'
+import { parseMenuText } from './scanParse.js'
 
 const KEY = 'dpcw-v1'
 const USERS_KEY = 'dpcw-users-v1'
@@ -158,6 +160,15 @@ export default function App() {
   const [newLeave, setNewLeave] = useState({ staffId: '', from: todayStr(), to: todayStr(), reason: '' })
   const [reviewForm, setReviewForm] = useState({ name: '', stars: 5, comment: '' })
   const [replyText, setReplyText] = useState({})
+  // --- Menu scan (client-side OCR with tesseract.js, ben+eng; no API key) ---
+  const [scanFile, setScanFile] = useState(null)
+  const [scanPreview, setScanPreview] = useState('')
+  const [scanBusy, setScanBusy] = useState(false)
+  const [scanProgress, setScanProgress] = useState(0)
+  const [scanStatus, setScanStatus] = useState('')
+  const [scanResult, setScanResult] = useState(null)
+  const [scanError, setScanError] = useState('')
+  const [scanText, setScanText] = useState('')
 
   useEffect(() => { try { localStorage.setItem(USERS_KEY, JSON.stringify(users)) } catch { /* ignore */ } }, [users])
 
@@ -281,6 +292,45 @@ export default function App() {
     if (!b) { alert('এই অর্ডারের কোনো বিল পাওয়া যায়নি'); return }
     setBill({ ...b, order })
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  // --- Menu scan: OCR text -> parse -> AUTO-ADD straight to the Menu.
+  // No preview/confirm step (Sir's rule, same as CafePilot): a wrong item
+  // goes live and the owner deletes it from the Menu page afterwards.
+  function applyScanResult(parsed) {
+    if (parsed.items.length) {
+      const base = Date.now()
+      upd((d) => {
+        parsed.items.forEach((it, i) => {
+          const id = `m${base}-${i}`
+          d.menu.push({ id, ...it })
+          d.stock[id] = 20
+        })
+        return d
+      })
+    }
+    setScanResult(parsed)
+  }
+  async function runScanFromText(text) {
+    const parsed = parseMenuText(text, data.menu)
+    applyScanResult(parsed)
+    return parsed
+  }
+  async function runScanPhoto() {
+    if (!scanFile) { setScanError('আগে মেনুর একটা ছবি বেছে নিন'); return }
+    setScanError(''); setScanResult(null); setScanBusy(true); setScanProgress(0); setScanStatus('ছবি পড়া হচ্ছে…')
+    try {
+      const { data: { text } } = await Tesseract.recognize(scanFile, 'ben+eng', {
+        logger: (m) => {
+          if (m.status === 'recognizing text') { setScanProgress(Math.round((m.progress || 0) * 100)); setScanStatus(`ছবি পড়া হচ্ছে… ${Math.round((m.progress || 0) * 100)}%`) }
+          else if (m.status === 'loading tesseract core' || m.status === 'loading language traineddata') setScanStatus('OCR মডেল নামছে… (প্রথমবার একটু সময় লাগবে)')
+        },
+      })
+      setScanStatus('লেখা পার্স করা হচ্ছে…')
+      await runScanFromText(text)
+      setScanStatus('')
+    } catch (e) {
+      setScanError('স্ক্যান করা যায়নি — নেট আছে কিনা দেখুন, আরেকবার চেষ্টা করুন। (' + (e && e.message ? String(e.message).slice(0, 80) : 'অজানা ত্রুটি') + ')')
+    } finally { setScanBusy(false); setScanProgress(0) }
   }
   const cartTotal = Object.entries(cart).reduce((s, [id, q]) => { const m = data.menu.find((x) => x.id === id); return s + (m ? m.price * q : 0) }, 0)
   const lastOrderObj = data.orders.find((o) => o.id === lastOrder)
@@ -475,11 +525,34 @@ export default function App() {
           </section>}
 
           {view === 'scan' && <section>
-            <h2>📸 মেনু স্ক্যান</h2>
-            <div className="box"><h3>⏳ শীঘ্রই আসছে — ব্যাকএন্ড AI লাগবে</h3>
-              <p>মেনুর ছবি থেকে আইটেম নিজে থেকে পড়ে যোগ করতে AI ভিশন + সার্ভার (ব্যাকএন্ড) লাগবে। এই ভার্সনটি শুধু ব্রাউজারের localStorage-এ চলে, তাই স্ক্যান এখনো চালু হয়নি।</p>
-              <p>আপাতত আইটেম হাতে যোগ করুন — মেনু পাতায় গিয়ে নাম, ক্যাটাগরি, দাম ও স্টেশন দিয়ে যোগ করা যায়।</p>
-              <button onClick={() => setView('menu')}>➕ মেনু পাতায় হাতে আইটেম যোগ করুন →</button></div>
+            <h2>📸 মেনু স্ক্যান — ছবি থেকে মেনু অটো-অ্যাড</h2>
+            <p>মেনুর ছবি তুলুন বা আপলোড করুন — ছবি থেকে আইটেম পড়ে <b>সরাসরি মেনুতে যোগ হয়ে যাবে</b>, কোনো কনফার্ম লাগবে না। ভুল আইটেম ঢুকলে মেনু পাতা থেকে মুছে ফেলবেন।</p>
+            <div className="box">
+              <div className="menu-form">
+                <label className="file-btn">📷 ছবি তুলুন / বেছে নিন
+                  <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files && e.target.files[0]; if (!f) return; setScanFile(f); setScanResult(null); setScanError(''); try { setScanPreview(URL.createObjectURL(f)) } catch { setScanPreview('') } }} />
+                </label>
+                <button disabled={scanBusy || !scanFile} onClick={runScanPhoto}>{scanBusy ? '⏳ স্ক্যান চলছে…' : '🔍 স্ক্যান করুন — আইটেম নিজে থেকে যোগ হবে'}</button>
+              </div>
+              {scanPreview && <div className="scan-preview"><img src={scanPreview} alt="মেনুর ছবি" /></div>}
+              {scanBusy && <div className="scan-progress"><div className="scan-bar" style={{ width: `${scanProgress}%` }} /><p>{scanStatus || `স্ক্যান চলছে… ${scanProgress}%`}</p></div>}
+              {scanError && <p className="auth-err">{scanError}</p>}
+              {scanResult && <div className="box scan-result">
+                <h3>✅ স্ক্যান শেষ</h3>
+                <p>➕ মেনুতে যোগ হয়েছে: <b>{bnNum(scanResult.added)}টি</b></p>
+                <p>🔁 আগে থেকেই ছিল (বাদ দেওয়া হয়েছে): <b>{bnNum(scanResult.duplicates)}টি</b></p>
+                <p>🚫 দাম পাওয়া যায়নি / বাদ পড়েছে: <b>{bnNum(scanResult.dropped)}টি</b> লাইন</p>
+                {scanResult.items.length > 0 && <ul>{scanResult.items.map((it, i) => <li key={i}>{it.name} — {it.cat} — {tk(it.price)}</li>)}</ul>}
+                <button onClick={() => setView('menu')}>🍵 মেনু পাতায় দেখুন →</button>
+              </div>}
+              <p className="note">💡 ভালো ফলের টিপস: পরিষ্কার আলোতে সোজা করে ছবি তুলুন, লেখা বড় ও পরিষ্কার রাখুন। OCR মাঝে মাঝে ১-২ অক্ষর ভুল পড়ে (যেমন কোল্ড → কোক্ত) — মেনু পাতায় গিয়ে নাম ঠিক করে নেবেন। বাংলা হাতের লেখা ও খুব ছোট ফন্টে কম আইটেম পেতে পারে। ইংরেজি সংখ্যা (50, 120) বাংলা সংখ্যার (৫০, ১২০) চেয়ে ভালো পড়ে। প্রথমবার OCR মডেল ডাউনলোড হতে একটু সময় লাগবে।</p>
+            </div>
+            <div className="box">
+              <h3>⌨️ অথবা লেখা বসিয়ে স্ক্যান করুন</h3>
+              <p>ছবি না থাকলে মেনুর লেখা এখানে বসান — এক লাইনে এক আইটেম, শেষে দাম (যেমন: মসলা চা ৩৫)।</p>
+              <textarea rows={5} style={{ width: '100%', padding: 10, border: '1px solid #d8c690', borderRadius: 8 }} placeholder={'স্পেশাল মালাই চা ৫০\nমসলা চা ৩৫\nকোল্ড কফি ১২০'} value={scanText} onChange={(e) => setScanText(e.target.value)} />
+              <div className="menu-form"><button disabled={scanBusy || !scanText.trim()} onClick={async () => { setScanError(''); setScanResult(null); setScanBusy(true); try { await runScanFromText(scanText) } finally { setScanBusy(false) } }}>🔍 লেখা থেকে আইটেম যোগ করুন</button></div>
+            </div>
           </section>}
 
           {view === 'customer' && customerView}
