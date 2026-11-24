@@ -2,6 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 
 const KEY = 'dpcw-v1'
+const USERS_KEY = 'dpcw-users-v1'
+const SESSION_KEY = 'dpcw-session-v1'
+// Simple one-way hash for demo localStorage auth — never store plain passwords.
+function hashPw(pw) { let h = 5381; for (let i = 0; i < pw.length; i++) h = ((h << 5) + h + pw.charCodeAt(i)) >>> 0; return 'h' + h.toString(16) }
+function seedUsers() { return [{ id: 'u-owner', name: 'Owner', email: 'owner@diplomacha.com', pwHash: hashPw('123456'), role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', created: todayStr() }] }
+function loadUsers() { try { const d = JSON.parse(localStorage.getItem(USERS_KEY)); if (Array.isArray(d) && d.length) return d } catch { /* fall through to seed */ } const s = seedUsers(); try { localStorage.setItem(USERS_KEY, JSON.stringify(s)) } catch { /* ignore */ } return s }
+function loadSession() { try { return localStorage.getItem(SESSION_KEY) || '' } catch { return '' } }
 const todayStr = () => new Date().toISOString().slice(0, 10)
 const tk = (n) => `৳${Number(n || 0).toLocaleString('en-IN')}`
 const bnNum = (n) => Number(n).toLocaleString('bn-BD')
@@ -76,6 +83,42 @@ export default function App() {
   const [newStaff, setNewStaff] = useState({ name: '', role: '', pin: '', station: 'Drinks' })
   const [newTable, setNewTable] = useState('')
   const [settings, setSettings] = useState(data.settings)
+  // --- Login / Sign Up (first screen) ---
+  const [isCustomer] = useState(() => new URLSearchParams(window.location.search).has('table'))
+  const [users, setUsers] = useState(loadUsers)
+  const [user, setUser] = useState(() => { const em = loadSession(); if (!em) return null; return loadUsers().find((x) => x.email.toLowerCase() === em.toLowerCase()) || null })
+  const [authTab, setAuthTab] = useState('login')
+  const [authErr, setAuthErr] = useState('')
+  const [authMsg, setAuthMsg] = useState('')
+  const [authForm, setAuthForm] = useState({ name: '', email: '', password: '', confirm: '', role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা' })
+
+  useEffect(() => { try { localStorage.setItem(USERS_KEY, JSON.stringify(users)) } catch { /* ignore */ } }, [users])
+
+  function doLogin() {
+    setAuthErr(''); setAuthMsg('')
+    const email = authForm.email.trim().toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setAuthErr('সঠিক ইমেইল ঠিকানা দিন'); return }
+    if (!authForm.password) { setAuthErr('পাসওয়ার্ড দিন'); return }
+    const u = users.find((x) => x.email.toLowerCase() === email)
+    if (!u || u.pwHash !== hashPw(authForm.password)) { setAuthErr('ইমেইল বা পাসওয়ার্ড ভুল হয়েছে — আবার চেষ্টা করুন'); return }
+    setUser(u); try { localStorage.setItem(SESSION_KEY, u.email) } catch { /* ignore */ }
+    setAuthForm({ ...authForm, password: '', confirm: '' }); setView('dashboard')
+  }
+  function doSignup() {
+    setAuthErr(''); setAuthMsg('')
+    const name = authForm.name.trim(); const email = authForm.email.trim().toLowerCase(); const shop = authForm.shop.trim()
+    if (!name) { setAuthErr('আপনার নাম দিন'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setAuthErr('সঠিক ইমেইল ঠিকানা দিন'); return }
+    if (users.some((x) => x.email.toLowerCase() === email)) { setAuthErr('এই ইমেইল দিয়ে already account আছে — লগইন করুন'); return }
+    if (!authForm.password || authForm.password.length < 6) { setAuthErr('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে'); return }
+    if (authForm.password !== authForm.confirm) { setAuthErr('দুইবারের পাসওয়ার্ড মিলছে না'); return }
+    if (!shop) { setAuthErr('দোকানের নাম দিন'); return }
+    const u = { id: `u${Date.now()}`, name, email, pwHash: hashPw(authForm.password), role: authForm.role, shop, created: todayStr() }
+    setUsers((prev) => [...prev, u]); setUser(u)
+    try { localStorage.setItem(SESSION_KEY, u.email) } catch { /* ignore */ }
+    setAuthMsg('সাইন আপ সফল হয়েছে — স্বাগতম!'); setAuthForm({ ...authForm, password: '', confirm: '' }); setView('dashboard')
+  }
+  function doLogout() { setUser(null); try { localStorage.removeItem(SESSION_KEY) } catch { /* ignore */ } setAuthErr(''); setAuthMsg(''); setAuthTab('login'); setView('dashboard') }
 
   useEffect(() => { localStorage.setItem(KEY, JSON.stringify(data)) }, [data])
   useEffect(() => {
@@ -117,12 +160,51 @@ export default function App() {
 
   const NAV = [['dashboard', '📊 ড্যাশবোর্ড'], ['menu', '🍵 মেনু'], ['tables', '🪑 টেবিল + QR'], ['customer', '🛒 কাস্টমার মেনু'], ['orders', '🧾 অর্ডার'], ['kitchen', '👨‍🍳 কিচেন (KDS)'], ['pos', '💰 POS + বিল'], ['staff', '👥 স্টাফ'], ['reports', '📈 রিপোর্ট'], ['settings', '⚙️ সেটিংস']]
 
+  // --- First screen: Login / Sign Up. Customer QR view (?table=...) needs no login. ---
+  if (!user && !isCustomer) {
+    return (
+      <div className="app auth-wrap">
+        <div className="auth-card">
+          <img src="/logo.jpg" alt="দ্য ডিপ্লোমা পাস চা-ওয়ালা লোগো" className="logo auth-logo" />
+          <h1>দ্য ডিপ্লোমা পাস চা-ওয়ালা</h1>
+          <p>Diploma Pass Cha-Wala • চা, গল্প, আড্ডা</p>
+          <div className="auth-tabs">
+            <button className={authTab === 'login' ? 'on' : ''} onClick={() => { setAuthTab('login'); setAuthErr(''); setAuthMsg('') }}>লগইন</button>
+            <button className={authTab === 'signup' ? 'on' : ''} onClick={() => { setAuthTab('signup'); setAuthErr(''); setAuthMsg('') }}>সাইন আপ</button>
+          </div>
+          {authErr && <p className="auth-err">{authErr}</p>}
+          {authMsg && <p className="auth-ok">{authMsg}</p>}
+          {authTab === 'login' ? (
+            <div className="form auth-form">
+              <label>ইমেইল <input type="email" placeholder="আপনার ইমেইল" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} /></label>
+              <label>পাসওয়ার্ড <input type="password" placeholder="পাসওয়ার্ড" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') doLogin() }} /></label>
+              <button onClick={doLogin}>🔑 লগইন করুন</button>
+              <p className="note">অ্যাকাউন্ট নেই? উপরে <b>সাইন আপ</b> ট্যাবে নতুন অ্যাকাউন্ট খুলুন।</p>
+            </div>
+          ) : (
+            <div className="form auth-form">
+              <label>নাম <input placeholder="আপনার নাম" value={authForm.name} onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })} /></label>
+              <label>ইমেইল <input type="email" placeholder="আপনার ইমেইল" value={authForm.email} onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })} /></label>
+              <label>পাসওয়ার্ড <input type="password" placeholder="কমপক্ষে ৬ অক্ষর" value={authForm.password} onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })} /></label>
+              <label>পাসওয়ার্ড আবার দিন <input type="password" placeholder="পাসওয়ার্ড নিশ্চিত করুন" value={authForm.confirm} onChange={(e) => setAuthForm({ ...authForm, confirm: e.target.value })} /></label>
+              <label>ভূমিকা <select value={authForm.role} onChange={(e) => setAuthForm({ ...authForm, role: e.target.value })}><option>Owner</option><option>Staff</option></select></label>
+              <label>দোকানের নাম <input placeholder="দোকানের নাম" value={authForm.shop} onChange={(e) => setAuthForm({ ...authForm, shop: e.target.value })} /></label>
+              <button onClick={doSignup}>✅ সাইন আপ করুন</button>
+              <p className="note">সাইন আপ করলেই সরাসরি ড্যাশবোর্ডে যাবেন।</p>
+            </div>
+          )}
+          <p className="auth-foot">কাস্টমার? লগইন লাগবে না — টেবিলের QR স্ক্যান করলেই মেনু খুলবে।</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       <header className="header">
         <img src="/logo.jpg" alt="দ্য ডিপ্লোমা পাস চা-ওয়ালা লোগো" className="logo" />
         <div><h1>{data.settings.shop}</h1><p>Diploma Pass Cha-Wala • চা, গল্প, আড্ডা • {data.settings.open}</p></div>
-        <div className="head-right"><span>📞 {data.settings.phone}</span><span>📍 {data.settings.address}</span></div>
+        <div className="head-right"><span>📞 {data.settings.phone}</span><span>📍 {data.settings.address}</span>{user ? <span>👤 {user.name} ({user.role})</span> : <span>👤 কাস্টমার</span>}{user && <button onClick={doLogout}>🚪 লগআউট</button>}</div>
       </header>
       {alert && <div className="alert">🔔 নতুন অর্ডার! <b>{alert.id}</b> — {alert.table} • {tk(total(alert))} <button onClick={() => { setAlert(null); setView('orders') }}>অর্ডার দেখুন</button> <button onClick={() => setAlert(null)}>✕</button></div>}
       <nav className="nav">{NAV.map(([k, l]) => <button key={k} className={view === k ? 'on' : ''} onClick={() => setView(k)}>{l}</button>)}</nav>
