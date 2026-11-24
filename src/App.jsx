@@ -13,7 +13,7 @@ function hashPw(pw) { let h = 5381; for (let i = 0; i < pw.length; i++) h = ((h 
 function seedUsers() { return [{ id: 'u-owner', name: 'Owner', email: 'owner@diplomacha.com', pwHash: hashPw('123456'), role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', created: todayStr() }] }
 function loadUsers() { try { const d = JSON.parse(localStorage.getItem(USERS_KEY)); if (Array.isArray(d) && d.length) return d } catch { /* fall through to seed */ } const s = seedUsers(); try { localStorage.setItem(USERS_KEY, JSON.stringify(s)) } catch { /* ignore */ } return s }
 function loadSession() { try { return localStorage.getItem(SESSION_KEY) || '' } catch { return '' } }
-const VERSION = 'v1.6.1 — Bponi Parity'
+const VERSION = 'v1.6.2 — Bponi Parity'
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
 const dhakaLong = (d = new Date()) => d.toLocaleDateString('bn-BD', { timeZone: 'Asia/Dhaka', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const realPhone = (phone) => (phone && phone !== '01900-000000' ? phone : '')
@@ -88,7 +88,6 @@ function seed() {
     bazar: [], vendors: [{ id: 'v1', name: 'স্থানীয় বাজার', phone: '' }], shifts: [], dues: [],
     branches: [{ id: 'br-1', name: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা — মূল শাখা', address: '1640 Narsingdi, Bangladesh', isMain: true }], salaries: [],
     dayCloses: [], visits: { total: 0, byDate: {} }, posDraft: null,
-    plan: { type: 'trial', price: 2000 },
   }
 }
 // Merge defaults for missing keys so old localStorage data keeps working.
@@ -112,7 +111,8 @@ function load() {
       }
       return { ...o, createdAt: Date.now() - 10 * 60000 }
     })
-    merged.plan = { ...s.plan, ...(d.plan || {}) }
+    // No plan in this system (Sir's order) — ignore any plan saved by older versions.
+    delete merged.plan
     merged.visits = { total: 0, byDate: {}, ...(d.visits || {}) }
     merged.stock = { ...s.stock, ...(d.stock || {}) }
     merged.staff = (d.staff || []).map((st) => ({ ...st, perms: Array.isArray(st.perms) && st.perms.length ? st.perms : defaultPermsForStaff(st) }))
@@ -462,7 +462,7 @@ export default function App() {
   const lastOrderObj = data.orders.find((o) => o.id === lastOrder)
   const kdsOrders = data.orders.filter((o) => ['new', 'confirmed', 'ready'].includes(o.status))
 
-  const PAGE_PERM = { menu: 'menu', tables: 'tables', scan: 'menu', orders: 'order', pos: 'pos', kitchen: 'kitchen', delivery: 'order', catering: 'order', members: 'order', reviews: 'order', bookings: 'order', reports: 'reports', analytics: 'reports', expenses: 'reports', dayclose: 'pos', staff: 'staff', leave: 'staff', stock: 'menu', offers: 'pos', settings: null, plan: null, bazar: 'reports', vendors: 'reports', shift: 'pos', due: 'pos', voice: 'order', branches: null, growth: 'reports', sop: null, salary: 'staff' }
+  const PAGE_PERM = { menu: 'menu', tables: 'tables', scan: 'menu', orders: 'order', pos: 'pos', kitchen: 'kitchen', delivery: 'order', catering: 'order', members: 'order', reviews: 'order', bookings: 'order', reports: 'reports', analytics: 'reports', expenses: 'reports', dayclose: 'pos', staff: 'staff', leave: 'staff', stock: 'menu', offers: 'pos', settings: null, bazar: 'reports', vendors: 'reports', shift: 'pos', due: 'pos', voice: 'order', branches: null, growth: 'reports', sop: null, salary: 'staff' }
   const NAV_GROUPS = [
     { key: 'menu', label: '🍵 মেনু ও টেবিল', items: [['menu', '🍵 মেনু'], ['tables', '🪑 টেবিল + QR'], ['scan', '📸 মেনু স্ক্যান']] },
     { key: 'sell', label: '🛒 বিক্রি', items: [['orders', '🧾 অর্ডার'], ['pos', '💰 POS + বিল'], ['kitchen', '👨‍🍳 কিচেন (KDS)'], ['voice', '🎙️ ভয়েস অর্ডার'], ['delivery', '🛵 ডেলিভারি'], ['catering', '🎉 ক্যাটারিং']] },
@@ -470,7 +470,7 @@ export default function App() {
     { key: 'money', label: '💵 টাকা ও হিসাব', items: [['reports', '📈 রিপোর্ট'], ['analytics', '📊 অ্যানালিটিক্স'], ['expenses', '💸 খরচ'], ['bazar', '🛒 বাজার / কেনা'], ['vendors', '🏪 ভেন্ডর'], ['shift', '💵 ক্যাশ ড্রয়ার / শিফট'], ['due', '📒 বাকি (Due)'], ['dayclose', '🌙 দিনের হিসাব বন্ধ']] },
     { key: 'manage', label: '⚙️ পরিচালনা', items: [['staff', '👥 স্টাফ'], ['salary', '💰 বেতন'], ['leave', '🏖️ স্টাফ ছুটি'], ['stock', '📦 স্টক'], ['offers', '🎟️ অফার / কুপন']] },
     { key: 'tools', label: '📈 আরও টুল', items: [['growth', '📈 সেলস গ্রোথ'], ['sop', '📋 SOP — কাজের নিয়ম']] },
-    { key: 'settings', label: '🔧 সেটিংস', items: [['settings', '⚙️ সেটিংস'], ['branches', '🏬 শাখা'], ['plan', '💎 প্ল্যান']] },
+    { key: 'settings', label: '🔧 সেটিংস', items: [['settings', '⚙️ সেটিংস'], ['branches', '🏬 শাখা']] },
   ]
   const toggleGroup = (k) => setOpenGroups((g) => ({ ...g, [k]: !g[k] }))
 
@@ -534,11 +534,6 @@ export default function App() {
           </header>
           <section className="feature-grid">
             {[['📸 মেনু স্ক্যান', 'ছবি থেকে মেনু অটো-অ্যাড'], ['🪑 QR মেনু', 'টেবিলের QR স্ক্যান করলেই অর্ডার'], ['🧾 অর্ডার', 'নতুন থেকে বিল পেইড পর্যন্ত ট্র্যাক'], ['👨‍🍳 কিচেন (KDS)', 'স্টেশন অনুযায়ী কাজ ভাগ'], ['💰 POS + বিল', 'বিল নং, ভ্যাট, কুপন, প্রিন্ট'], ['📊 রিপোর্ট', 'বিক্রি, অ্যানালিটিক্স, দিনের হিসাব']].map(([t, d]) => <div key={t} className="feature-card"><b>{t}</b><span>{d}</span></div>)}
-          </section>
-          <section className="box pricing">
-            <h3>💎 প্ল্যান — ৳২,০০০ / মাস</h3>
-            <p>ট্রায়ালের পর মাসিক ৳২,০০০ • বার্ষিক ৳২০,০০০। মেনু, QR, অর্ডার, কিচেন, POS, রিপোর্ট — সব কিছু একটাই সিস্টেমে।</p>
-            <button className="btn-primary" onClick={() => { setAuthTab('signup'); setShowLanding(false) }}>✅ সাইন আপ করে শুরু করুন</button>
           </section>
           <footer>© {new Date().getFullYear()} {data.settings.shop} • {data.settings.address} • {VERSION}</footer>
         </div>
@@ -1068,7 +1063,7 @@ export default function App() {
 
           {view === 'branches' && <section>
             <h2>🏬 শাখা (Branches)</h2>
-            <p>মূল শাখা: <b>দ্য ডিপ্লোমা পাস চা-ওয়ালা — মূল শাখা</b>, 1640 Narsingdi, Bangladesh। নতুন শাখা এখানে যোগ করুন — প্রতি অতিরিক্ত শাখায় প্ল্যান ৳২,০০০ / মাস।</p>
+            <p>মূল শাখা: <b>দ্য ডিপ্লোমা পাস চা-ওয়ালা — মূল শাখা</b>, 1640 Narsingdi, Bangladesh। নতুন শাখা এখানে যোগ করুন।</p>
             <div className="menu-form">
               <input placeholder="শাখার নাম" value={newBranch.name} onChange={(e) => setNewBranch({ ...newBranch, name: e.target.value })} />
               <input placeholder="ঠিকানা" value={newBranch.address} onChange={(e) => setNewBranch({ ...newBranch, address: e.target.value })} />
@@ -1131,18 +1126,6 @@ export default function App() {
             <p className="note">📱 সিঙ্ক নোট: সব ডেটা এই ডিভাইসের ব্রাউজারের localStorage-এ থাকে (key: dpcw-v1)। অন্য ফোন/কম্পিউটারে একই ডেটা দেখতে শেয়ার্ড ডেটাবেস + ব্যাকএন্ড লাগবে — এই ভার্সনে সেটা নেই।</p>
           </section>}
 
-          {view === 'plan' && <section>
-            <h2>💎 প্ল্যান</h2>
-            <div className="box"><h3>বর্তমান প্ল্যান: {data.plan.type === 'trial' ? 'ট্রায়াল' : 'মাসিক'}</h3>
-              <p>মাসিক: <b>৳২,০০০ / মাস</b> • বার্ষিক: <b>৳২০,০০০ / বছর</b> (২ মাস ফ্রি)</p>
-              <p>যা যা থাকছে:</p>
-              <ul><li>মেনু, টেবিল + QR, কাস্টমার অর্ডার</li><li>কিচেন ডিসপ্লে (KDS), POS + বিল</li><li>রিপোর্ট, অ্যানালিটিক্স, খরচ ও দিনের হিসাব</li><li>স্টাফ, ছুটি, স্টক, কুপন, মেম্বার, বুকিং, ডেলিভারি, ক্যাটারিং, রিভিউ</li><li>ভয়েস অর্ডার, বাজার, ভেন্ডর, শিফট/ক্যাশ ড্রয়ার, বাকি (Due), বেতন, শাখা, সেলস গ্রোথ</li></ul>
-              <p>🏬 শাখা: প্রতিটি অতিরিক্ত শাখার জন্য <b>৳২,০০০ / মাস</b>। বর্তমানে <b>{bnNum((data.branches || []).length)}টি শাখা</b> আছে — শাখা পাতা থেকে নতুন শাখা যোগ করুন।</p>
-              <p>💳 পেমেন্ট: ম্যানুয়াল — bKash / Nagad-এ পাঠিয়ে মালিককে জানান, মালিক হাতে প্ল্যান চালু করবেন। এই ভার্সনে অনলাইন পেমেন্ট গেটওয়ে নেই।</p>
-              {data.plan.type === 'trial' && <button onClick={() => { if (confirm('মাসিক প্ল্যানে যাবেন? পেমেন্ট ম্যানুয়ালি করতে হবে।')) upd((d) => { d.plan = { type: 'monthly', price: 2000 }; return d }) }}>💎 মাসিক প্ল্যানে যান (৳২,০০০/মাস)</button>}
-              {data.plan.type === 'monthly' && <p className="note">✅ মাসিক প্ল্যান চালু আছে।</p>}
-            </div>
-          </section>}
           </>)}
         </main>
         <footer>© {new Date().getFullYear()} {data.settings.shop} • {data.settings.address} • {VERSION} • ডেটা এই ব্রাউজারে সংরক্ষিত থাকে</footer>
