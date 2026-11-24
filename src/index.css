@@ -23,6 +23,7 @@
 .qr-head{font-size:18px}
 .qr-box{background:#fff;border:2px solid #e8d9b0;border-radius:12px;padding:12px;line-height:0}
 .qr-url{word-break:break-all;text-decoration:underline;color:#7a5a1e}
+.print-only{display:none}
 .qr-actions{justify-content:center}
 .btn-danger{background:#c0392b!important;color:#fff!important;border-color:#c0392b!important}
 .menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
@@ -43,13 +44,37 @@ footer{text-align:center;color:#888;padding:18px;font-size:13px}
   .print-area,.print-area *{visibility:visible}
   .print-area{position:absolute;left:0;top:0;width:100%}
   .print-area button,.print-area .no-print,.no-print{display:none!important}
-  @page{size:A4;margin:10mm}
+  @page{size:A4;margin:8mm}
+  *{print-color-adjust:exact;-webkit-print-color-adjust:exact}
   .bill{width:48mm;margin:0 auto}
   .bill-80{width:72mm}
-  .qr-grid{grid-template-columns:repeat(2,1fr)}
+  /* --- A4 QR print (v1.6.7): 2×5 grid fills one A4 page --- */
+  /* Printable area at 8mm margins: 194×281mm. Card 54mm tall, 2.5mm gaps:
+     5×54 + 4×2.5 = 280mm — fills the page, no spill to a 2nd page. */
+  .qr-grid{display:grid!important;grid-template-columns:repeat(2,1fr)!important;gap:2.5mm}
+  .qr-card{height:54mm;break-inside:avoid;page-break-inside:avoid;background:#fff8ec;border:2px solid #d4a94e;border-radius:3mm;padding:2mm 4mm;gap:0.5mm;justify-content:space-between;overflow:hidden}
+  .qr-card .qr-print-head{display:flex;align-items:center;gap:3mm;text-align:left;width:100%}
+  .qr-card .qr-print-logo{width:8mm;height:8mm;border-radius:50%;border:1.5px solid #d4a94e;object-fit:cover;background:#fff;flex:none}
+  .qr-card .qr-print-head b{display:block;font-size:11pt;color:#2b1a0e;line-height:1.2}
+  .qr-card .qr-print-head small{display:block;font-size:7pt;color:#7a5a1e}
+  .qr-card .qr-head{font-size:12pt;color:#2b1a0e}
+  .qr-card .qr-box{padding:1mm;border-width:2px}
+  .qr-card .qr-box svg{width:22mm!important;height:22mm!important}
+  .qr-card .qr-url{font-size:7pt;color:#7a5a1e}
+  .qr-card .qr-print-cta{display:block;margin:0;padding-top:0.8mm;border-top:1.5px solid #d4a94e;width:100%;font-size:9.5pt;font-weight:700;color:#2b1a0e}
+  /* --- Single-card print: one big poster card filling the A4 page --- */
+  body.print-one .qr-grid{display:flex!important;justify-content:center;align-items:center;height:280mm}
   body.print-one .qr-card{display:none!important}
-  body.print-one .qr-card.print-one{display:flex!important}
-  body.print-one .qr-grid{grid-template-columns:1fr;max-width:340px;margin:0 auto}
+  body.print-one .qr-card.print-one{display:flex!important;height:252mm;width:170mm;padding:10mm 12mm;gap:5mm}
+  body.print-one .qr-card .qr-print-head{justify-content:center;text-align:center}
+  body.print-one .qr-card .qr-print-logo{width:28mm;height:28mm;border-width:2.5px}
+  body.print-one .qr-card .qr-print-head b{font-size:20pt}
+  body.print-one .qr-card .qr-print-head small{font-size:11pt}
+  body.print-one .qr-card .qr-head{font-size:32pt}
+  body.print-one .qr-card .qr-box{padding:5mm}
+  body.print-one .qr-card .qr-box svg{width:115mm!important;height:115mm!important}
+  body.print-one .qr-card .qr-url{font-size:11pt}
+  body.print-one .qr-card .qr-print-cta{font-size:15pt;padding-top:4mm}
 }
 .bill-58{max-width:48mm}
 .bill-80{max-width:72mm}
