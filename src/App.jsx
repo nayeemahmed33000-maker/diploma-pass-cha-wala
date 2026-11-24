@@ -13,12 +13,13 @@ function hashPw(pw) { let h = 5381; for (let i = 0; i < pw.length; i++) h = ((h 
 function seedUsers() { return [{ id: 'u-owner', name: 'Owner', email: 'owner@diplomacha.com', pwHash: hashPw('123456'), role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', created: todayStr() }] }
 function loadUsers() { try { const d = JSON.parse(localStorage.getItem(USERS_KEY)); if (Array.isArray(d) && d.length) return d } catch { /* fall through to seed */ } const s = seedUsers(); try { localStorage.setItem(USERS_KEY, JSON.stringify(s)) } catch { /* ignore */ } return s }
 function loadSession() { try { return localStorage.getItem(SESSION_KEY) || '' } catch { return '' } }
-const VERSION = 'v1.6.5 — Bponi Parity'
+const VERSION = 'v1.6.6 — Bponi Parity'
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
 const dhakaLong = (d = new Date()) => d.toLocaleDateString('bn-BD', { timeZone: 'Asia/Dhaka', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const realPhone = (phone) => (phone && phone !== '01900-000000' ? phone : '')
 const tk = (n) => `৳${Number(n || 0).toLocaleString('en-IN')}`
 const bnNum = (n) => Number(n).toLocaleString('bn-BD')
+const bnNum2 = (n) => String(n).padStart(2, '0').split('').map((d) => '০১২৩৪৫৬৭৮৯'[d] || d).join('')
 const STATUS = { new: 'নতুন', confirmed: 'কনফার্ম', ready: 'রেডি', served: 'পরিবেশন', paid: 'বিল পেইড', cancelled: 'বাতিল' }
 const DEFAULT_SOP = '১. দোকান খুলুন — ক্যাশ ড্রয়ারে শুরুর টাকা বসিয়ে শিফট খুলুন।\n২. অর্ডার নিন — টেবিলের QR / POS / ভয়েস অর্ডার থেকে।\n৩. কিচেনে পাঠান — KDS-এ টিকিট দেখে তৈরি করুন, রেডি হলে Ready চাপুন।\n৪. পরিবেশন করুন — ওয়েটার টেবিলে দিয়ে আসবে।\n৫. বিল করুন — POS থেকে Cash / bKash / Nagad / Card / Due-তে বিল।\n৬. বাকি থাকলে Due পাতায় লিখে রাখুন, টাকা পেলে আংশিক/পুরো জমা দিন।\n৭. দিন শেষে — শিফট বন্ধ করুন, তারপর দিনের হিসাব বন্ধ (Day-close) করুন।'
 const STATIONS = ['Drinks', 'Kitchen', 'Snacks']
@@ -69,7 +70,7 @@ function seed() {
   return {
     settings: { shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', phone: '01900-000000', address: '1640 Narsingdi, Bangladesh', open: 'সকাল ১০টা — রাত ১০টা', vat: 0, service: 0, businessType: 'Tea shop', sop: DEFAULT_SOP, theme: 'brown' },
     menu: seedMenu,
-    tables: Array.from({ length: 10 }, (_, i) => ({ code: `T-${String(i + 1).padStart(2, '0')}`, name: `নাম্বার ${bnNum(i + 1)}`, seats: 5 })),
+    tables: Array.from({ length: 10 }, (_, i) => ({ code: `T-${String(i + 1).padStart(2, '0')}`, name: `নাম্বার ${bnNum2(i + 1)}`, seats: 5 })),
     staff: [
       { id: 's1', name: 'মালিক', role: 'Owner — সব দেখবে', pin: '1234', station: 'All', perms: [...PERMS] },
       { id: 's2', name: 'নিলয়', role: 'চা-মেকার — শুধু চা / ড্রিংকস', pin: '1111', station: 'Drinks', perms: ['order', 'kitchen'] },
@@ -114,7 +115,8 @@ function load() {
     // No plan in this system (Sir's order) — ignore any plan saved by older versions.
     delete merged.plan
     // QR redesign (v1.6.5): tables have seats (default 5) and "নাম্বার ০১" names, not "টেবিল ০১".
-    if (Array.isArray(merged.tables)) merged.tables = merged.tables.map((tb) => ({ ...tb, seats: tb.seats || 5, name: String(tb.name || '').startsWith('টেবিল ') ? `নাম্বার ${String(tb.name).slice(6)}` : (tb.name || `নাম্বার ${tb.code || ''}`) }))
+    // v1.6.6: number is zero-padded Bengali (০১, not ১) — derived from the table code so old saves fix too.
+    if (Array.isArray(merged.tables)) merged.tables = merged.tables.map((tb) => { const num = String(tb.code || '').replace(/[^0-9]/g, '') || '1'; return { ...tb, seats: tb.seats || 5, name: `নাম্বার ${bnNum2(num)}` } })
     merged.visits = { total: 0, byDate: {}, ...(d.visits || {}) }
     merged.stock = { ...s.stock, ...(d.stock || {}) }
     merged.staff = (d.staff || []).map((st) => ({ ...st, perms: Array.isArray(st.perms) && st.perms.length ? st.perms : defaultPermsForStaff(st) }))
