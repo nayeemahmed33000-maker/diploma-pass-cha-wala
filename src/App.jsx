@@ -13,7 +13,7 @@ function hashPw(pw) { let h = 5381; for (let i = 0; i < pw.length; i++) h = ((h 
 function seedUsers() { return [{ id: 'u-owner', name: 'Owner', email: 'owner@diplomacha.com', pwHash: hashPw('123456'), role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', created: todayStr() }] }
 function loadUsers() { try { const d = JSON.parse(localStorage.getItem(USERS_KEY)); if (Array.isArray(d) && d.length) return d } catch { /* fall through to seed */ } const s = seedUsers(); try { localStorage.setItem(USERS_KEY, JSON.stringify(s)) } catch { /* ignore */ } return s }
 function loadSession() { try { return localStorage.getItem(SESSION_KEY) || '' } catch { return '' } }
-const VERSION = 'v1.6.0 — Bponi Parity'
+const VERSION = 'v1.6.1 — Bponi Parity'
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
 const dhakaLong = (d = new Date()) => d.toLocaleDateString('bn-BD', { timeZone: 'Asia/Dhaka', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const realPhone = (phone) => (phone && phone !== '01900-000000' ? phone : '')
@@ -76,9 +76,9 @@ function seed() {
       { id: 's3', name: 'রাতুল', role: 'স্ন্যাকস-মেকার — শুধু স্ন্যাকস', pin: '2222', station: 'Snacks', perms: ['order', 'kitchen'] },
     ],
     orders: [
-      mk('ORD-1001', t, 'T-01', [['m1', 2], ['m21', 1]], 'new', '০৯:৩২', Date.now() - 3 * 60000),
-      mk('ORD-1002', t, 'T-03', [['m2', 1], ['m20', 2]], 'ready', '০৯:১৫', Date.now() - 12 * 60000),
-      mk('ORD-1003', t, 'T-02', [['m1', 1], ['m13', 1]], 'paid', '০৮:৫০', Date.now() - 45 * 60000),
+      mk('ORD-1001', t, 'T-01', [['m1', 2], ['m21', 1]], 'new', new Date(Date.now() - 3 * 60000).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dhaka' }), Date.now() - 3 * 60000),
+      mk('ORD-1002', t, 'T-03', [['m2', 1], ['m20', 2]], 'ready', new Date(Date.now() - 12 * 60000).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dhaka' }), Date.now() - 12 * 60000),
+      mk('ORD-1003', t, 'T-02', [['m1', 1], ['m13', 1]], 'paid', new Date(Date.now() - 45 * 60000).toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Dhaka' }), Date.now() - 45 * 60000),
       mk('ORD-0998', y, 'T-05', [['m1', 3], ['m22', 1]], 'paid', '১৯:২০', Date.now() - 86400000),
     ],
     bills: [{ no: 'Bill No-0001', date: t, createdAt: Date.now() - 45 * 60000, orderId: 'ORD-1003', total: 90, subtotal: 90, discount: 0, vat: 0, service: 0, payment: 'Cash', type: 'Dine-in', billedBy: 'মালিক' }],
@@ -101,6 +101,17 @@ function load() {
     merged.settings = { ...s.settings, ...(d.settings || {}) }
     // Address migration: older saved data still says Narayanganj — Sir's shop is 1640 Narsingdi, Bangladesh.
     if (!merged.settings.address || !String(merged.settings.address).includes('Narsingdi')) merged.settings.address = '1640 Narsingdi, Bangladesh'
+    // KDS fix: orders saved before v1.6.0 have no createdAt, so wait showed 0 min and oldest-first sorting failed.
+    // Backfill createdAt from the order's time string (Bengali digits, Dhaka time) on its date.
+    if (Array.isArray(merged.orders)) merged.orders = merged.orders.map((o) => {
+      if (o.createdAt) return o
+      const m = String(o.time || '').replace(/[০-৯]/g, (ch) => '০১২৩৪৫৬৭৮৯'.indexOf(ch)).match(/(\d{1,2}):(\d{2})/)
+      if (m) {
+        const dt = new Date(`${o.date || todayStr()}T${String(m[1]).padStart(2, '0')}:${m[2]}:00+06:00`)
+        if (!isNaN(dt)) return { ...o, createdAt: dt.getTime() }
+      }
+      return { ...o, createdAt: Date.now() - 10 * 60000 }
+    })
     merged.plan = { ...s.plan, ...(d.plan || {}) }
     merged.visits = { total: 0, byDate: {}, ...(d.visits || {}) }
     merged.stock = { ...s.stock, ...(d.stock || {}) }
