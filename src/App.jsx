@@ -44,7 +44,7 @@ function seed() {
     }), status, time, billNo: status === 'paid' ? 'Bill No-0001' : null,
   })
   return {
-    settings: { shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', phone: '01900-000000', address: 'নারায়ণগঞ্জ', open: 'সকাল ১০টা — রাত ১০টা' },
+    settings: { shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', phone: '01900-000000', address: '1640 Narsingdi, Bangladesh', open: 'সকাল ১০টা — রাত ১০টা' },
     menu: seedMenu,
     tables: Array.from({ length: 10 }, (_, i) => ({ code: `T-${String(i + 1).padStart(2, '0')}`, name: `টেবিল ${bnNum(i + 1)}` })),
     staff: [
