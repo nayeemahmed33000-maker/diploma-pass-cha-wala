@@ -33,7 +33,18 @@
 .note{background:#fff8ec;border:1px dashed var(--gold);padding:10px;border-radius:10px}
 .bill{text-align:center;max-width:380px;margin:0 auto}
 footer{text-align:center;color:#888;padding:18px;font-size:13px}
-@media print{body *{visibility:hidden}.print-area,.print-area *{visibility:visible}.print-area{position:absolute;left:0;top:0;width:100%}}
+@media print{
+  body *{visibility:hidden}
+  .print-area,.print-area *{visibility:visible}
+  .print-area{position:absolute;left:0;top:0;width:100%}
+  .print-area button,.print-area .no-print,.no-print{display:none!important}
+  @page{size:A4;margin:10mm}
+  .bill{width:48mm;margin:0 auto}
+  .bill-80{width:72mm}
+  .qr-grid{grid-template-columns:repeat(2,1fr)}
+}
+.bill-58{max-width:48mm}
+.bill-80{max-width:72mm}
 .auth-wrap{display:flex;justify-content:center;padding:24px 12px}
 .auth-card{background:#fff;border:2px solid var(--gold);border-radius:16px;padding:24px;max-width:460px;width:100%;text-align:center;box-shadow:0 6px 24px rgba(43,26,14,.12)}
 .auth-card h1{margin:10px 0 4px;color:var(--brown);font-size:24px}.auth-card p{margin:4px 0;color:#666}
@@ -93,4 +104,59 @@ footer{text-align:center;color:#888;padding:18px;font-size:13px}
   .side-group .side-item{padding-left:10px}
   .side-foot{flex-direction:row;align-items:center;justify-content:space-between}
   .content{padding:12px 0 0}
+}
+
+/* --- Professional polish v1.5.0 --- */
+section h2{font-size:20px;margin:6px 0 10px;overflow-wrap:anywhere;line-height:1.4}
+section h3{overflow-wrap:anywhere}
+.empty{color:#888;text-align:center;padding:18px;background:#fff;border:1px dashed #e8d9b0;border-radius:12px}
+.toast{position:sticky;top:10px;z-index:50;display:flex;justify-content:space-between;gap:10px;align-items:center;background:var(--brown);color:#fff;padding:10px 14px;border-radius:12px;margin:10px 0;box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.toast-err{background:#b71c1c}
+.toast button{background:transparent;border:none;color:#fff;cursor:pointer;font-size:16px}
+.btn-primary,.btn-gold,.btn-ghost{padding:12px 20px;border-radius:24px;font-weight:700;cursor:pointer;font-size:15px}
+.btn-primary{background:var(--brown);color:var(--gold);border:2px solid var(--brown)}
+.btn-gold{background:var(--gold);color:var(--brown);border:2px solid var(--gold)}
+.btn-primary:hover,.btn-gold:hover,.btn-ghost:hover{filter:brightness(1.06)}
+.btn-ghost{background:#fff;color:var(--brown);border:2px solid var(--gold)}
+.link-btn{background:none;border:none;color:var(--gold);cursor:pointer;font-weight:700;padding:4px 0}
+.row button.on,.menu-form button.on{background:var(--brown);color:var(--gold)}
+.hero{background:var(--brown);color:#fff;border-radius:18px;padding:28px 20px;text-align:center}
+.hero h1{color:var(--gold);font-size:28px;margin:10px 0 6px;overflow-wrap:anywhere}
+.hero .tagline{font-size:17px;opacity:.95;margin:6px 0}
+.hero-meta{opacity:.85;font-size:14px}
+.hero-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px}
+.hero-logo{width:120px;height:120px}
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin:14px 0}
+.feature-card{background:#fff;border:1px solid #e8d9b0;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.feature-card b{font-size:16px;overflow-wrap:anywhere}
+.feature-card span{color:#666;font-size:14px}
+.pricing{text-align:center}
+.pricing h3{color:var(--brown)}
+.qr-logo{width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--gold);background:#fff}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+button:disabled{opacity:.55;cursor:not-allowed}
+.menu-item b,.tbl td,.box p{overflow-wrap:anywhere}
+.tbl{width:100%}
+.landing footer,.app footer{overflow-wrap:anywhere}
+@media(max-width:820px){
+  .topbar{font-size:12px;gap:8px}
+  .topbar button{margin-left:0}
+  .header h1{font-size:20px}
+}
+@media(max-width:640px){
+  .hero h1{font-size:22px}
+  .hero{padding:20px 14px}
+  .hero .tagline{font-size:15px}
+  .cards{grid-template-columns:repeat(2,1fr)}
+  .menu-grid{grid-template-columns:repeat(2,1fr)}
+  .cart-bar{flex-wrap:wrap;text-align:center}
+  .auth-card{padding:18px}
+  .tbl th,.tbl td{padding:7px 6px;font-size:13px}
+  .box{padding:12px}
+  section h2{font-size:18px}
+}
+@media(max-width:420px){
+  .menu-grid{grid-template-columns:1fr}
+  .cards{grid-template-columns:1fr}
+  .feature-grid{grid-template-columns:1fr}
 }
