@@ -12,7 +12,7 @@ function hashPw(pw) { let h = 5381; for (let i = 0; i < pw.length; i++) h = ((h 
 function seedUsers() { return [{ id: 'u-owner', name: 'Owner', email: 'owner@diplomacha.com', pwHash: hashPw('123456'), role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', created: todayStr() }] }
 function loadUsers() { try { const d = JSON.parse(localStorage.getItem(USERS_KEY)); if (Array.isArray(d) && d.length) return d } catch { /* fall through to seed */ } const s = seedUsers(); try { localStorage.setItem(USERS_KEY, JSON.stringify(s)) } catch { /* ignore */ } return s }
 function loadSession() { try { return localStorage.getItem(SESSION_KEY) || '' } catch { return '' } }
-const VERSION = 'v1.5.0 — Professional'
+const VERSION = 'v1.5.1 — Professional'
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
 const dhakaLong = (d = new Date()) => d.toLocaleDateString('bn-BD', { timeZone: 'Asia/Dhaka', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 const realPhone = (phone) => (phone && phone !== '01900-000000' ? phone : '')
@@ -95,6 +95,8 @@ function load() {
     const s = seed()
     const merged = { ...s, ...d }
     merged.settings = { ...s.settings, ...(d.settings || {}) }
+    // Address migration: older saved data still says Narayanganj — Sir's shop is 1640 Narsingdi, Bangladesh.
+    if (!merged.settings.address || !String(merged.settings.address).includes('Narsingdi')) merged.settings.address = '1640 Narsingdi, Bangladesh'
     merged.plan = { ...s.plan, ...(d.plan || {}) }
     merged.visits = { total: 0, byDate: {}, ...(d.visits || {}) }
     merged.stock = { ...s.stock, ...(d.stock || {}) }
