@@ -130,8 +130,6 @@ section h3{overflow-wrap:anywhere}
 .feature-card{background:#fff;border:1px solid #e8d9b0;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px}
 .feature-card b{font-size:16px;overflow-wrap:anywhere}
 .feature-card span{color:#666;font-size:14px}
-.pricing{text-align:center}
-.pricing h3{color:var(--brown)}
 .qr-logo{width:56px;height:56px;border-radius:50%;object-fit:cover;border:2px solid var(--gold);background:#fff}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 button:disabled{opacity:.55;cursor:not-allowed}
