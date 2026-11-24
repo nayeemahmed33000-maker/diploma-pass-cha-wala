@@ -12,7 +12,10 @@ function hashPw(pw) { let h = 5381; for (let i = 0; i < pw.length; i++) h = ((h 
 function seedUsers() { return [{ id: 'u-owner', name: 'Owner', email: 'owner@diplomacha.com', pwHash: hashPw('123456'), role: 'Owner', shop: 'দ্য ডিপ্লোমা পাস চা-ওয়ালা', created: todayStr() }] }
 function loadUsers() { try { const d = JSON.parse(localStorage.getItem(USERS_KEY)); if (Array.isArray(d) && d.length) return d } catch { /* fall through to seed */ } const s = seedUsers(); try { localStorage.setItem(USERS_KEY, JSON.stringify(s)) } catch { /* ignore */ } return s }
 function loadSession() { try { return localStorage.getItem(SESSION_KEY) || '' } catch { return '' } }
-const todayStr = () => new Date().toISOString().slice(0, 10)
+const VERSION = 'v1.5.0 — Professional'
+const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
+const dhakaLong = (d = new Date()) => d.toLocaleDateString('bn-BD', { timeZone: 'Asia/Dhaka', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+const realPhone = (phone) => (phone && phone !== '01900-000000' ? phone : '')
 const tk = (n) => `৳${Number(n || 0).toLocaleString('en-IN')}`
 const bnNum = (n) => Number(n).toLocaleString('bn-BD')
 const STATUS = { new: 'নতুন', confirmed: 'কনফার্ম', ready: 'রেডি', served: 'পরিবেশন', paid: 'বিল পেইড', cancelled: 'বাতিল' }
@@ -54,7 +57,7 @@ function defaultPermsForStaff(s) {
 
 function seed() {
   const t = todayStr()
-  const y = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const y = new Date(Date.now() - 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' })
   const mk = (id, date, table, items, status, time) => ({
     id, date, table, customer: 'ডেমো কাস্টমার', items: items.map(([mid, qty]) => {
       const m = seedMenu.find((x) => x.id === mid); return { id: mid, name: m.name, price: m.price, qty, station: m.station }
@@ -169,6 +172,13 @@ export default function App() {
   const [scanResult, setScanResult] = useState(null)
   const [scanError, setScanError] = useState('')
   const [scanText, setScanText] = useState('')
+  const [toast, setToast] = useState(null)
+  const [showLanding, setShowLanding] = useState(true)
+  const [guestCustomer, setGuestCustomer] = useState(false)
+  const [billSize, setBillSize] = useState(() => { try { return localStorage.getItem('dpcw-bill-size') || '58' } catch { return '58' } })
+  useEffect(() => { try { localStorage.setItem('dpcw-bill-size', billSize) } catch { /* ignore */ } }, [billSize])
+  const showToast = (msg, kind = 'ok') => { setToast({ msg, kind }); window.setTimeout(() => setToast(null), 4000) }
+  const toastEl = toast ? <div className={`toast toast-${toast.kind}`} role="status"><span>{toast.msg}</span><button className="no-print" onClick={() => setToast(null)} aria-label="বন্ধ করুন">✕</button></div> : null
 
   useEffect(() => { try { localStorage.setItem(USERS_KEY, JSON.stringify(users)) } catch { /* ignore */ } }, [users])
 
@@ -180,6 +190,7 @@ export default function App() {
     const u = users.find((x) => x.email.toLowerCase() === email)
     if (!u || u.pwHash !== hashPw(authForm.password)) { setAuthErr('ইমেইল বা পাসওয়ার্ড ভুল হয়েছে — আবার চেষ্টা করুন'); return }
     setUser(u); try { localStorage.setItem(SESSION_KEY, u.email) } catch { /* ignore */ }
+    setShowLanding(false); showToast('স্বাগতম! লগইন সফল হয়েছে')
     setAuthForm({ ...authForm, password: '', confirm: '' }); setView('dashboard')
   }
   function doSignup() {
@@ -192,11 +203,11 @@ export default function App() {
     if (authForm.password !== authForm.confirm) { setAuthErr('দুইবারের পাসওয়ার্ড মিলছে না'); return }
     if (!shop) { setAuthErr('দোকানের নাম দিন'); return }
     const u = { id: `u${Date.now()}`, name, email, pwHash: hashPw(authForm.password), role: authForm.role, shop, created: todayStr() }
-    setUsers((prev) => [...prev, u]); setUser(u)
+    setUsers((prev) => [...prev, u]); setUser(u); setShowLanding(false)
     try { localStorage.setItem(SESSION_KEY, u.email) } catch { /* ignore */ }
     setAuthMsg('সাইন আপ সফল হয়েছে — স্বাগতম!'); setAuthForm({ ...authForm, password: '', confirm: '' }); setView('dashboard')
   }
-  function doLogout() { setUser(null); setActiveStaff(null); try { localStorage.removeItem(SESSION_KEY) } catch { /* ignore */ } setAuthErr(''); setAuthMsg(''); setAuthTab('login'); setView('dashboard') }
+  function doLogout() { setUser(null); setActiveStaff(null); setShowLanding(true); setGuestCustomer(false); try { localStorage.removeItem(SESSION_KEY) } catch { /* ignore */ } setAuthErr(''); setAuthMsg(''); setAuthTab('login'); setView('dashboard') }
 
   useEffect(() => { localStorage.setItem(KEY, JSON.stringify(data)) }, [data])
   useEffect(() => {
@@ -267,7 +278,7 @@ export default function App() {
     const items = Object.entries(cart).filter(([, q]) => q > 0).map(([id, qty]) => {
       const m = data.menu.find((x) => x.id === id); return { id, name: m.name, price: m.price, qty, station: m.station }
     })
-    if (!items.length) { alert('কার্ট খালি — আগে আইটেম যোগ করুন'); return }
+    if (!items.length) { showToast('কার্ট খালি — আগে আইটেম যোগ করুন', 'err'); return }
     const seq = data.seq + 1
     const order = { id: `ORD-${seq}`, date: todayStr(), table: custTable, customer: custName || 'কাস্টমার', items, status: 'new', time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }), billNo: null, type: 'Dine-in', payment: null, billedBy: actorName() }
     upd((d) => { d.orders.unshift(order); d.seq = seq; return d })
@@ -289,7 +300,7 @@ export default function App() {
   }
   function reprintBill(order) {
     const b = [...data.bills].reverse().find((x) => x.orderId === order.id)
-    if (!b) { alert('এই অর্ডারের কোনো বিল পাওয়া যায়নি'); return }
+    if (!b) { showToast('এই অর্ডারের কোনো বিল পাওয়া যায়নি', 'err'); return }
     setBill({ ...b, order })
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -363,35 +374,65 @@ export default function App() {
     <section>
       <h2>🛒 কাস্টমার মেনু — {custTable} {data.tables.find((t) => t.code === custTable)?.name || ''}</h2>
       <div className="menu-form"><label>টেবিল: <select value={custTable} onChange={(e) => setCustTable(e.target.value)}>{data.tables.map((t) => <option key={t.code} value={t.code}>{t.code} — {t.name}</option>)}</select></label><input placeholder="আপনার নাম (ঐচ্ছিক)" value={custName} onChange={(e) => setCustName(e.target.value)} />
-        <button onClick={() => { upd((d) => { d.bells.push({ id: `bell-${Date.now()}`, table: custTable, time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }), date: todayStr(), done: false }); return d }); alert(`🔔 ওয়েটারকে ডাকা হয়েছে — ${custTable}। একটু অপেক্ষা করুন।`) }}>🔔 ওয়েটার ডাকুন</button></div>
+        <button onClick={() => { upd((d) => { d.bells.push({ id: `bell-${Date.now()}`, table: custTable, time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }), date: todayStr(), done: false }); return d }); showToast(`🔔 ওয়েটারকে ডাকা হয়েছে — ${custTable}। একটু অপেক্ষা করুন।`) }}>🔔 ওয়েটার ডাকুন</button></div>
       {lastOrderObj && <div className="box tracker"><h3>📍 আপনার অর্ডার ট্র্যাকার — {lastOrderObj.id}</h3><p>স্ট্যাটাস: <b>{STATUS[lastOrderObj.status]}</b> {lastOrderObj.billNo ? `• ${lastOrderObj.billNo}` : ''}</p><p>মোট: {tk(total(lastOrderObj))}</p><div className="steps">{['new', 'confirmed', 'ready', 'served', 'paid'].map((s) => <span key={s} className={['new', 'confirmed', 'ready', 'served', 'paid'].indexOf(lastOrderObj.status) >= ['new', 'confirmed', 'ready', 'served', 'paid'].indexOf(s) ? 'done' : ''}>{STATUS[s]}</span>)}</div>
         {['served', 'paid'].includes(lastOrderObj.status) && <div className="review-form"><h4>💬 আপনার অভিজ্ঞতা কেমন ছিল? রিভিউ দিন</h4>
           <div className="menu-form"><input placeholder="আপনার নাম" value={reviewForm.name} onChange={(e) => setReviewForm({ ...reviewForm, name: e.target.value })} />
             <select value={reviewForm.stars} onChange={(e) => setReviewForm({ ...reviewForm, stars: Number(e.target.value) })}>{[5, 4, 3, 2, 1].map((s) => <option key={s} value={s}>{'⭐'.repeat(s)} ({s})</option>)}</select>
             <input placeholder="মন্তব্য লিখুন (ঐচ্ছিক)" value={reviewForm.comment} onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })} />
-            <button onClick={() => { if (!reviewForm.name) return alert('নাম দিন'); upd((d) => { d.reviews.unshift({ id: `rv-${Date.now()}`, date: todayStr(), orderId: lastOrderObj.id, table: lastOrderObj.table, name: reviewForm.name, stars: reviewForm.stars, comment: reviewForm.comment, reply: '' }); return d }); setReviewForm({ name: '', stars: 5, comment: '' }); alert('ধন্যবাদ! আপনার রিভিউ সংরক্ষিত হয়েছে।') }}>✅ রিভিউ পাঠান</button></div></div>}
+            <button onClick={() => { if (!reviewForm.name) return showToast('নাম দিন', 'err'); upd((d) => { d.reviews.unshift({ id: `rv-${Date.now()}`, date: todayStr(), orderId: lastOrderObj.id, table: lastOrderObj.table, name: reviewForm.name, stars: reviewForm.stars, comment: reviewForm.comment, reply: '' }); return d }); setReviewForm({ name: '', stars: 5, comment: '' }); showToast('ধন্যবাদ! আপনার রিভিউ সংরক্ষিত হয়েছে।') }}>✅ রিভিউ পাঠান</button></div></div>}
       </div>}
       <div className="chips">{['সব', ...CATS].map((c) => <button key={c} className={cat === c ? 'on' : ''} onClick={() => setCat(c)}>{c}</button>)}</div>
       <div className="menu-grid">{data.menu.filter((m) => m.active && (cat === 'সব' || m.cat === cat)).map((m) => <div key={m.id} className="menu-item"><b>{m.name}</b><span>{m.cat} • {m.station}</span><strong>{tk(m.price)}</strong><div className="qty"><button onClick={() => setCart((c) => ({ ...c, [m.id]: Math.max(0, (c[m.id] || 0) - 1) }))}>−</button><b>{cart[m.id] || 0}</b><button onClick={() => setCart((c) => ({ ...c, [m.id]: (c[m.id] || 0) + 1 }))}>+</button></div></div>)}</div>
+      {!data.menu.some((m) => m.active && (cat === 'সব' || m.cat === cat)) && <p className="empty">এই ক্যাটাগরিতে কোনো চালু আইটেম নেই।</p>}
       <div className="cart-bar">🛒 মোট: <b>{tk(cartTotal)}</b> <button disabled={!cartTotal} onClick={placeOrder}>অর্ডার দিন →</button></div>
     </section>
   )
 
   // --- Bill card (shown after makeBill / reprint, in any view) ---
   const billCard = bill && (
-    <div className="box print-area"><div className="bill"><img src="/logo.jpg" alt="লোগো" style={{ width: 70, borderRadius: '50%' }} /><h3>{data.settings.shop}</h3><p>{data.settings.address} • {data.settings.phone}</p><hr /><p><b>{bill.no}</b> • অর্ডার {bill.orderId} • {bill.date}</p><p>{bill.type || 'Dine-in'} • পেমেন্ট: {bill.payment || 'Cash'} • বিল করেছেন: {bill.billedBy || '—'}</p>{bill.order.items.map((i) => <p key={i.id}>{i.name} × {i.qty} — {tk(i.price * i.qty)}</p>)}<hr />
+    <div className="box print-area"><div className={`bill bill-${billSize}`}><img src="/logo.jpg" alt="লোগো" style={{ width: 70, borderRadius: '50%' }} /><h3>{data.settings.shop}</h3><p>{data.settings.address}{realPhone(data.settings.phone) ? ` • ${realPhone(data.settings.phone)}` : ''}</p><hr /><p><b>{bill.no}</b> • অর্ডার {bill.orderId} • {bill.date}</p><p>{bill.type || 'Dine-in'} • পেমেন্ট: {bill.payment || 'Cash'} • বিল করেছেন: {bill.billedBy || '—'}</p>{bill.order.items.map((i) => <p key={i.id}>{i.name} × {i.qty} — {tk(i.price * i.qty)}</p>)}<hr />
       <p>সাবটোটাল: {tk(bill.subtotal ?? bill.total)}</p>
       {bill.discount ? <p>কুপন ছাড়: −{tk(bill.discount)}</p> : null}
       {bill.vat ? <p>ভ্যাট ({data.settings.vat}%): {tk(bill.vat)}</p> : null}
       {bill.service ? <p>সার্ভিস চার্জ ({data.settings.service}%): {tk(bill.service)}</p> : null}
-      <p><b>মোট: {tk(bill.total)}</b></p><p>ধন্যবাদ, আবার আসবেন! ☕</p><button onClick={() => window.print()}>🖨️ প্রিন্ট</button> <button onClick={() => setBill(null)}>বন্ধ</button></div></div>
+      <p><b>মোট: {tk(bill.total)}</b></p><p>ধন্যবাদ, আবার আসবেন! ☕</p><div className="row no-print" style={{ justifyContent: 'center' }}><span>কাগজ:</span><button className={billSize === '58' ? 'on' : ''} onClick={() => setBillSize('58')}>58mm</button><button className={billSize === '80' ? 'on' : ''} onClick={() => setBillSize('80')}>80mm</button></div><button className="no-print" onClick={() => window.print()}>🖨️ প্রিন্ট</button> <button className="no-print" onClick={() => setBill(null)}>বন্ধ</button></div></div>
   )
 
-  // --- First screen: Login / Sign Up. Customer QR view (?table=...) needs no login. ---
-  if (!user && !isCustomer) {
+  // --- First screen: Landing page, then Login / Sign Up. Customer QR view (?table=...) needs no login. ---
+  if (!user && !isCustomer && !guestCustomer) {
+    if (showLanding) {
+      return (
+        <div className={`app landing theme-${data.settings.theme || 'brown'}`}>
+          {toastEl}
+          <header className="hero">
+            <img src="/logo.jpg" alt="দ্য ডিপ্লোমা পাস চা-ওয়ালা লোগো" className="logo hero-logo" />
+            <h1>দ্য ডিপ্লোমা পাস চা-ওয়ালা</h1>
+            <p className="tagline">চা, গল্প, আড্ডা — আপনার ক্যাফের পুরো ম্যানেজমেন্ট, এক জায়গায়।</p>
+            <p className="hero-meta">📍 {data.settings.address} • 🕙 {data.settings.open}</p>
+            <div className="hero-actions">
+              <button className="btn-primary" onClick={() => { setAuthTab('login'); setShowLanding(false) }}>🔑 লগইন</button>
+              <button className="btn-gold" onClick={() => { setAuthTab('signup'); setShowLanding(false) }}>✅ সাইন আপ</button>
+              <button className="btn-ghost" onClick={() => setGuestCustomer(true)}>🛒 কাস্টমার মেনু</button>
+            </div>
+          </header>
+          <section className="feature-grid">
+            {[['📸 মেনু স্ক্যান', 'ছবি থেকে মেনু অটো-অ্যাড'], ['🪑 QR মেনু', 'টেবিলের QR স্ক্যান করলেই অর্ডার'], ['🧾 অর্ডার', 'নতুন থেকে বিল পেইড পর্যন্ত ট্র্যাক'], ['👨‍🍳 কিচেন (KDS)', 'স্টেশন অনুযায়ী কাজ ভাগ'], ['💰 POS + বিল', 'বিল নং, ভ্যাট, কুপন, প্রিন্ট'], ['📊 রিপোর্ট', 'বিক্রি, অ্যানালিটিক্স, দিনের হিসাব']].map(([t, d]) => <div key={t} className="feature-card"><b>{t}</b><span>{d}</span></div>)}
+          </section>
+          <section className="box pricing">
+            <h3>💎 প্ল্যান — ৳২,০০০ / মাস</h3>
+            <p>ট্রায়ালের পর মাসিক ৳২,০০০ • বার্ষিক ৳২০,০০০। মেনু, QR, অর্ডার, কিচেন, POS, রিপোর্ট — সব কিছু একটাই সিস্টেমে।</p>
+            <button className="btn-primary" onClick={() => { setAuthTab('signup'); setShowLanding(false) }}>✅ সাইন আপ করে শুরু করুন</button>
+          </section>
+          <footer>© {new Date().getFullYear()} {data.settings.shop} • {data.settings.address} • {VERSION}</footer>
+        </div>
+      )
+    }
     return (
       <div className={`app auth-wrap theme-${data.settings.theme || 'brown'}`}>
-        <div className="auth-card">
+        {toastEl}
+      <div className="auth-card">
+          <button className="link-btn no-print" onClick={() => setShowLanding(true)}>← হোমে ফিরুন</button>
           <img src="/logo.jpg" alt="দ্য ডিপ্লোমা পাস চা-ওয়ালা লোগো" className="logo auth-logo" />
           <h1>দ্য ডিপ্লোমা পাস চা-ওয়ালা</h1>
           <p>Diploma Pass Cha-Wala • চা, গল্প, আড্ডা</p>
@@ -420,23 +461,24 @@ export default function App() {
               <p className="note">সাইন আপ করলেই সরাসরি ড্যাশবোর্ডে যাবেন।</p>
             </div>
           )}
-          <p className="auth-foot">কাস্টমার? লগইন লাগবে না — টেবিলের QR স্ক্যান করলেই মেনু খুলবে।</p>
+          <p className="auth-foot">কাস্টমার? লগইন লাগবে না — টেবিলের QR স্ক্যান করলেই মেনু খুলবে।<br /><small>{VERSION}</small></p>
         </div>
       </div>
     )
   }
 
   // --- Customer QR view: no login, no sidebar ---
-  if (isCustomer) {
+  if (isCustomer || guestCustomer) {
     return (
       <div className={`app theme-${data.settings.theme || 'brown'}`}>
         <header className="header">
           <img src="/logo.jpg" alt="দ্য ডিপ্লোমা পাস চা-ওয়ালা লোগো" className="logo" />
           <div><h1>{data.settings.shop}</h1><p>Diploma Pass Cha-Wala • চা, গল্প, আড্ডা • {data.settings.open}</p></div>
-          <div className="head-right"><span>📞 {data.settings.phone}</span><span>📍 {data.settings.address}</span></div>
+          <div className="head-right">{realPhone(data.settings.phone) && <span>📞 {realPhone(data.settings.phone)}</span>}<span>📍 {data.settings.address}</span>{guestCustomer && <span className="row"><button className="no-print" onClick={() => { setGuestCustomer(false); setShowLanding(true) }}>← হোম</button><button className="no-print" onClick={() => { setGuestCustomer(false); setShowLanding(false); setAuthTab('login') }}>🔑 লগইন</button></span>}</div>
         </header>
+        {toastEl}
         <main>{customerView}</main>
-        <footer>© {data.settings.shop} • ডেটা এই ব্রাউজারে সংরক্ষিত থাকে</footer>
+        <footer>© {new Date().getFullYear()} {data.settings.shop} • {data.settings.address} • {VERSION} • ডেটা এই ব্রাউজারে সংরক্ষিত থাকে</footer>
       </div>
     )
   }
@@ -460,7 +502,7 @@ export default function App() {
           )
         })}
       </nav>
-      <div className="side-foot"><small>👤 {activeStaff ? `${activeStaff.name} (স্টাফ)` : user ? `${user.name} (${user.role})` : 'কাস্টমার'}</small><button onClick={doLogout}>🚪 লগআউট</button></div>
+      <div className="side-foot"><small>👤 {activeStaff ? `${activeStaff.name} (স্টাফ)` : user ? `${user.name} (${user.role})` : 'কাস্টমার'}</small><small>{VERSION}</small><button onClick={doLogout}>🚪 লগআউট</button></div>
     </aside>
   )
 
@@ -472,16 +514,17 @@ export default function App() {
       {sidebar}
       <div className="content">
         <header className="topbar">
-          <span>📞 {data.settings.phone}</span><span>📍 {data.settings.address}</span>
+          {realPhone(data.settings.phone) && <span>📞 {realPhone(data.settings.phone)}</span>}<span>📍 {data.settings.address}</span>
           <span>👤 {activeStaff ? `${activeStaff.name} (স্টাফ)` : user ? `${user.name} (${user.role})` : 'কাস্টমার'}</span>
           {user && <button onClick={doLogout}>🚪 লগআউট</button>}
         </header>
+        {toastEl}
         {alert && <div className="alert">🔔 নতুন অর্ডার! <b>{alert.id}</b> — {alert.table} • {tk(total(alert))} <button onClick={() => { setAlert(null); setView('orders') }}>অর্ডার দেখুন</button> <button onClick={() => setAlert(null)}>✕</button></div>}
         {billCard}
         <main>
           {viewPerm && !canView(viewPerm) ? denied : (<>
           {view === 'dashboard' && <section>
-            <h2>📊 আজকের ড্যাশবোর্ড — {new Date().toLocaleDateString('bn-BD')}</h2>
+            <h2>📊 আজকের ড্যাশবোর্ড — {dhakaLong()}</h2>
             {activeBells.length > 0 && <div className="box bell-box"><h3>🔔 ওয়েটার ডাক — {bnNum(activeBells.length)}টি</h3>{activeBells.map((b) => <p key={b.id}><b>{b.table}</b> থেকে ডেকেছে • {b.time} <button onClick={() => upd((d) => { const x = d.bells.find((y) => y.id === b.id); if (x) x.done = true; return d })}>✅ গেছি / বাতিল</button></p>)}</div>}
             <div className="cards">
               <div className="card"><b>{tk(todaySale)}</b><span>আজকের মোট বিক্রি</span></div>
@@ -491,7 +534,7 @@ export default function App() {
             </div>
             <div className="grid2">
               <div className="box"><h3>🔥 জনপ্রিয় আইটেম (আজ)</h3>{popular.length ? popular.map(([n, q]) => <p key={n}>{n} — <b>{bnNum(q)}টি</b></p>) : <p>এখনো অর্ডার নেই।</p>}</div>
-              <div className="box"><h3>🕒 সাম্প্রতিক অর্ডার</h3>{todayOrders.slice(0, 5).map((o) => <p key={o.id}>{o.id} • {o.table} • {tk(total(o))} • <b>{STATUS[o.status]}</b></p>) || <p>—</p>}</div>
+              <div className="box"><h3>🕒 সাম্প্রতিক অর্ডার</h3>{todayOrders.length ? todayOrders.slice(0, 5).map((o) => <p key={o.id}>{o.id} • {o.table} • {tk(total(o))} • <b>{STATUS[o.status]}</b></p>) : <p className="empty">আজ এখনো কোনো অর্ডার নেই।</p>}</div>
             </div>
             <div className="box"><h3>👥 আজকে কে কত অর্ডার / বিল তুলেছে</h3>
               {staffSummary.length ? <table className="tbl"><thead><tr><th>স্টাফ</th><th>অর্ডার</th><th>বিল</th><th>টাকা</th></tr></thead><tbody>
@@ -510,7 +553,7 @@ export default function App() {
               <select value={newItem.cat} onChange={(e) => setNewItem({ ...newItem, cat: e.target.value })}>{CATS.map((c) => <option key={c}>{c}</option>)}</select>
               <input type="number" placeholder="দাম (৳)" value={newItem.price} onChange={(e) => setNewItem({ ...newItem, price: e.target.value })} />
               <select value={newItem.station} onChange={(e) => setNewItem({ ...newItem, station: e.target.value })}>{STATIONS.map((s) => <option key={s}>{s}</option>)}</select>
-              <button onClick={() => { if (!newItem.name || !newItem.price) return alert('নাম ও দাম দিন'); const nid = `m${Date.now()}`; upd((d) => { d.menu.push({ id: nid, name: newItem.name, cat: newItem.cat, price: Number(newItem.price), station: newItem.station, active: true }); d.stock[nid] = 20; return d }); setNewItem({ name: '', cat: 'দুধ চা', price: '', station: 'Drinks' }) }}>➕ যোগ করুন</button>
+              <button onClick={() => { if (!newItem.name || !newItem.price) return showToast('নাম ও দাম দিন', 'err'); const nid = `m${Date.now()}`; upd((d) => { d.menu.push({ id: nid, name: newItem.name, cat: newItem.cat, price: Number(newItem.price), station: newItem.station, active: true }); d.stock[nid] = 20; return d }); setNewItem({ name: '', cat: 'দুধ চা', price: '', station: 'Drinks' }) }}>➕ যোগ করুন</button>
             </div>
             <table className="tbl"><thead><tr><th>আইটেম</th><th>ক্যাটাগরি</th><th>স্টেশন</th><th>দাম</th><th>চালু</th><th></th></tr></thead><tbody>
               {data.menu.filter((m) => cat === 'সব' || m.cat === cat).map((m) => <tr key={m.id}><td>{m.name}</td><td>{m.cat}</td><td>{m.station}</td><td>{tk(m.price)}</td><td><button onClick={() => upd((d) => { d.menu.find((x) => x.id === m.id).active = !m.active; return d })}>{m.active ? '✅ চালু' : '⛔ বন্ধ'}</button></td><td><button onClick={() => { if (confirm(`"${m.name}" মুছবেন?`)) upd((d) => { d.menu = d.menu.filter((x) => x.id !== m.id); return d }) }}>🗑️</button></td></tr>)}
@@ -521,7 +564,7 @@ export default function App() {
             <h2>🪑 টেবিল + QR — {bnNum(data.tables.length)}টি টেবিল</h2>
             <p>কাস্টমার টেবিলের QR স্ক্যান করলেই ওই টেবিলের মেনু খুলবে। QR প্রিন্ট করে টেবিলে লাগান।</p>
             <div className="menu-form"><input placeholder="নতুন টেবিল কোড, যেমন T-11" value={newTable} onChange={(e) => setNewTable(e.target.value)} /><button onClick={() => { if (!newTable) return; upd((d) => { d.tables.push({ code: newTable.toUpperCase(), name: `টেবিল ${newTable}` }); return d }); setNewTable('') }}>➕ টেবিল যোগ</button><button onClick={() => window.print()}>🖨️ সব QR প্রিন্ট</button></div>
-            <div className="qr-grid">{data.tables.map((t) => <div key={t.code} className="qr-card"><QRCodeSVG value={`${baseUrl}?table=${t.code}`} size={130} /><b>{t.name}</b><small>{t.code}</small><small>{baseUrl}?table={t.code}</small><button onClick={() => { setCustTable(t.code); setView('customer') }}>কাস্টমার মেনু দেখুন →</button></div>)}</div>
+            <div className="qr-grid print-area">{data.tables.map((t) => <div key={t.code} className="qr-card"><img src="/logo.jpg" alt="" className="qr-logo" /><b>{data.settings.shop}</b><small>{data.settings.address}</small><QRCodeSVG value={`${baseUrl}?table=${t.code}`} size={130} /><b>{t.name}</b><small>{t.code}</small><small>{baseUrl}?table={t.code}</small><button className="no-print" onClick={() => { setCustTable(t.code); setView('customer') }}>কাস্টমার মেনু দেখুন →</button></div>)}</div>
           </section>}
 
           {view === 'scan' && <section>
@@ -582,7 +625,7 @@ export default function App() {
             </div>
             <div className="menu-form">
               <input placeholder="কুপন কোড, যেমন CHA10" value={posCouponCode} onChange={(e) => setPosCouponCode(e.target.value.toUpperCase())} />
-              <button onClick={() => { const c = data.coupons.find((x) => x.code.toUpperCase() === posCouponCode.trim().toUpperCase() && x.active); if (!c) return alert('কুপন পাওয়া যায়নি বা বন্ধ আছে'); setPosCoupon(c); alert(`কুপন লাগানো হয়েছে: ${c.code} — ${c.pct}% ছাড়`) }}>🎟️ কুপন লাগান</button>
+              <button onClick={() => { const c = data.coupons.find((x) => x.code.toUpperCase() === posCouponCode.trim().toUpperCase() && x.active); if (!c) return showToast('কুপন পাওয়া যায়নি বা বন্ধ আছে', 'err'); setPosCoupon(c); showToast(`কুপন লাগানো হয়েছে: ${c.code} — ${c.pct}% ছাড়`) }}>🎟️ কুপন লাগান</button>
               {posCoupon && <span>✅ {posCoupon.code} — {posCoupon.pct}% ছাড় <button onClick={() => { setPosCoupon(null); setPosCouponCode('') }}>✕</button></span>}
             </div>
             <div className="menu-grid">{data.menu.filter((m) => m.active).map((m) => <div key={m.id} className="menu-item"><b>{m.name}</b><span>{m.cat}</span><strong>{tk(m.price)}</strong><div className="qty"><button onClick={() => setPosCart((c) => ({ ...c, [m.id]: Math.max(0, (c[m.id] || 0) - 1) }))}>−</button><b>{posCart[m.id] || 0}</b><button onClick={() => setPosCart((c) => ({ ...c, [m.id]: (c[m.id] || 0) + 1 }))}>+</button></div></div>)}</div>
@@ -608,7 +651,7 @@ export default function App() {
                       setBill({ ...b, order }); setPosCart({}); setPosCoupon(null); setPosCouponCode(''); setPosMember('')
                       try { localStorage.removeItem(POS_DRAFT_KEY) } catch { /* ignore */ }
                     }}>🧾 বিল করুন ({tk(calc.total)})</button>
-                    <button onClick={() => { setPosCart({}); setPosCoupon(null); setPosCouponCode(''); try { localStorage.removeItem(POS_DRAFT_KEY) } catch { /* ignore */ } }}>🗑️ কার্ট খালি করুন</button>
+                    <button onClick={() => { if (!confirm('কার্ট খালি করবেন?')) return; setPosCart({}); setPosCoupon(null); setPosCouponCode(''); try { localStorage.removeItem(POS_DRAFT_KEY) } catch { /* ignore */ } }}>🗑️ কার্ট খালি করুন</button>
                   </div>
                 </div>
               )
@@ -629,7 +672,7 @@ export default function App() {
               <input placeholder="ঠিকানা" value={newDelivery.address} onChange={(e) => setNewDelivery({ ...newDelivery, address: e.target.value })} />
               <select value={newDelivery.itemId} onChange={(e) => setNewDelivery({ ...newDelivery, itemId: e.target.value })}>{data.menu.map((m) => <option key={m.id} value={m.id}>{m.name} — {tk(m.price)}</option>)}</select>
               <input type="number" min="1" placeholder="পরিমাণ" value={newDelivery.qty} onChange={(e) => setNewDelivery({ ...newDelivery, qty: Number(e.target.value) || 1 })} />
-              <button onClick={() => { if (!newDelivery.customer) return alert('কাস্টমারের নাম দিন'); const m = data.menu.find((x) => x.id === newDelivery.itemId); const totalAmt = m.price * newDelivery.qty; upd((d) => { d.deliveryOrders.unshift({ id: `DLV-${Date.now()}`, date: todayStr(), customer: newDelivery.customer, phone: newDelivery.phone, address: newDelivery.address, items: `${m.name} × ${newDelivery.qty}`, total: totalAmt, status: 'new' }); return d }); setNewDelivery({ customer: '', phone: '', address: '', itemId: 'm1', qty: 1 }) }}>➕ ডেলিভারি যোগ</button>
+              <button onClick={() => { if (!newDelivery.customer) return showToast('কাস্টমারের নাম দিন', 'err'); const m = data.menu.find((x) => x.id === newDelivery.itemId); const totalAmt = m.price * newDelivery.qty; upd((d) => { d.deliveryOrders.unshift({ id: `DLV-${Date.now()}`, date: todayStr(), customer: newDelivery.customer, phone: newDelivery.phone, address: newDelivery.address, items: `${m.name} × ${newDelivery.qty}`, total: totalAmt, status: 'new' }); return d }); setNewDelivery({ customer: '', phone: '', address: '', itemId: 'm1', qty: 1 }) }}>➕ ডেলিভারি যোগ</button>
             </div>
             <h3>POS / অর্ডার থেকে আসা ডেলিভারি ({bnNum(todayOrders.filter((o) => o.type === 'Delivery').length)}টি আজ)</h3>
             {todayOrders.filter((o) => o.type === 'Delivery').map((o) => <div key={o.id} className="box"><b>{o.id}</b> • {o.customer} • {STATUS[o.status]} • মোট {tk(total(o))}<p>{o.items.map((i) => `${i.name} × ${i.qty}`).join(', ')}</p></div>)}
@@ -646,7 +689,7 @@ export default function App() {
               <input type="number" placeholder="অতিথি সংখ্যা" value={newCatering.guests} onChange={(e) => setNewCatering({ ...newCatering, guests: e.target.value })} />
               <input placeholder="আইটেম (যেমন: মালাই চা × ৫০, ফুচকা × ৩০)" value={newCatering.items} onChange={(e) => setNewCatering({ ...newCatering, items: e.target.value })} />
               <input type="number" placeholder="মোট টাকা (৳)" value={newCatering.total} onChange={(e) => setNewCatering({ ...newCatering, total: e.target.value })} />
-              <button onClick={() => { if (!newCatering.customer || !newCatering.total) return alert('কাস্টমার ও মোট টাকা দিন'); upd((d) => { d.cateringOrders.unshift({ id: `CAT-${Date.now()}`, ...newCatering, guests: Number(newCatering.guests) || 0, total: Number(newCatering.total) }); return d }); setNewCatering({ date: todayStr(), customer: '', guests: '', items: '', total: '' }) }}>➕ ক্যাটারিং যোগ</button>
+              <button onClick={() => { if (!newCatering.customer || !newCatering.total) return showToast('কাস্টমার ও মোট টাকা দিন', 'err'); upd((d) => { d.cateringOrders.unshift({ id: `CAT-${Date.now()}`, ...newCatering, guests: Number(newCatering.guests) || 0, total: Number(newCatering.total) }); return d }); setNewCatering({ date: todayStr(), customer: '', guests: '', items: '', total: '' }) }}>➕ ক্যাটারিং যোগ</button>
             </div>
             {data.cateringOrders.map((c) => <div key={c.id} className="box"><b>{c.customer}</b> • {c.date} • {bnNum(c.guests)} জন অতিথি • মোট <b>{tk(c.total)}</b><p>{c.items}</p><button onClick={() => { if (confirm('মুছবেন?')) upd((d) => { d.cateringOrders = d.cateringOrders.filter((x) => x.id !== c.id); return d }) }}>🗑️ মুছুন</button></div>)}
             {!data.cateringOrders.length && <p>কোনো ক্যাটারিং অর্ডার নেই।</p>}
@@ -658,7 +701,7 @@ export default function App() {
             <div className="menu-form">
               <input placeholder="মেম্বারের নাম" value={newMember.name} onChange={(e) => setNewMember({ ...newMember, name: e.target.value })} />
               <input placeholder="ফোন নম্বর" value={newMember.phone} onChange={(e) => setNewMember({ ...newMember, phone: e.target.value })} />
-              <button onClick={() => { if (!newMember.name || !newMember.phone) return alert('নাম ও ফোন দিন'); if (data.members.some((m) => m.phone === newMember.phone)) return alert('এই ফোনে মেম্বার already আছে'); upd((d) => { d.members.push({ id: `mb-${Date.now()}`, name: newMember.name, phone: newMember.phone, points: 0 }); return d }); setNewMember({ name: '', phone: '' }) }}>➕ মেম্বার যোগ</button>
+              <button onClick={() => { if (!newMember.name || !newMember.phone) return showToast('নাম ও ফোন দিন', 'err'); if (data.members.some((m) => m.phone === newMember.phone)) return showToast('এই ফোনে মেম্বার already আছে', 'err'); upd((d) => { d.members.push({ id: `mb-${Date.now()}`, name: newMember.name, phone: newMember.phone, points: 0 }); return d }); setNewMember({ name: '', phone: '' }) }}>➕ মেম্বার যোগ</button>
             </div>
             <table className="tbl"><thead><tr><th>নাম</th><th>ফোন</th><th>পয়েন্ট</th><th></th></tr></thead><tbody>
               {data.members.map((m) => <tr key={m.id}><td>{m.name}</td><td>{m.phone}</td><td><b>{bnNum(m.points || 0)}</b></td><td><button onClick={() => { if (confirm(`"${m.name}" মুছবেন?`)) upd((d) => { d.members = d.members.filter((x) => x.id !== m.id); return d }) }}>🗑️</button></td></tr>)}
@@ -684,7 +727,7 @@ export default function App() {
               <input placeholder="ফোন" value={newBooking.phone} onChange={(e) => setNewBooking({ ...newBooking, phone: e.target.value })} />
               <input type="number" placeholder="অতিথি" value={newBooking.guests} onChange={(e) => setNewBooking({ ...newBooking, guests: e.target.value })} />
               <select value={newBooking.table} onChange={(e) => setNewBooking({ ...newBooking, table: e.target.value })}>{data.tables.map((t) => <option key={t.code} value={t.code}>{t.code}</option>)}</select>
-              <button onClick={() => { if (!newBooking.name || !newBooking.time) return alert('নাম ও সময় দিন'); upd((d) => { d.bookings.push({ id: `bk-${Date.now()}`, ...newBooking, guests: Number(newBooking.guests) || 0 }); return d }); setNewBooking({ date: todayStr(), time: '', name: '', phone: '', guests: '', table: 'T-01' }) }}>➕ বুকিং যোগ</button>
+              <button onClick={() => { if (!newBooking.name || !newBooking.time) return showToast('নাম ও সময় দিন', 'err'); upd((d) => { d.bookings.push({ id: `bk-${Date.now()}`, ...newBooking, guests: Number(newBooking.guests) || 0 }); return d }); setNewBooking({ date: todayStr(), time: '', name: '', phone: '', guests: '', table: 'T-01' }) }}>➕ বুকিং যোগ</button>
             </div>
             {data.bookings.map((b) => <div key={b.id} className="box"><b>{b.name}</b> • {b.date} {b.time} • {b.table} • {bnNum(b.guests)} জন • {b.phone} <button onClick={() => { if (confirm('বুকিং মুছবেন?')) upd((d) => { d.bookings = d.bookings.filter((x) => x.id !== b.id); return d }) }}>🗑️</button></div>)}
             {!data.bookings.length && <p>কোনো বুকিং নেই।</p>}
@@ -693,7 +736,7 @@ export default function App() {
           {view === 'reports' && <section>
             <h2>📈 রিপোর্ট — গত ৭ দিন</h2>
             <table className="tbl"><thead><tr><th>তারিখ</th><th>অর্ডার</th><th>বিক্রি</th></tr></thead><tbody>
-              {[...Array(7)].map((_, i) => { const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10); const os = data.orders.filter((o) => o.date === d && o.status !== 'cancelled'); return <tr key={d}><td>{new Date(d).toLocaleDateString('bn-BD')}</td><td>{bnNum(os.length)}</td><td>{tk(os.reduce((s, o) => s + total(o), 0))}</td></tr> })}
+              {[...Array(7)].map((_, i) => { const d = new Date(Date.now() - i * 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' }); const os = data.orders.filter((o) => o.date === d && o.status !== 'cancelled'); return <tr key={d}><td>{new Date(d).toLocaleDateString('bn-BD')}</td><td>{bnNum(os.length)}</td><td>{tk(os.reduce((s, o) => s + total(o), 0))}</td></tr> })}
             </tbody></table>
             <h3>💳 পেমেন্ট মাধ্যম অনুযায়ী (সব দিনের বিল)</h3>
             {PAYMENTS.map((p) => { const bs = data.bills.filter((b) => b.payment === p); return bs.length ? <p key={p}>{p} — {bnNum(bs.length)}টি বিল — <b>{tk(bs.reduce((s, b) => s + b.total, 0))}</b></p> : null })}
@@ -719,7 +762,7 @@ export default function App() {
                 </div>
                 <div className="grid2">
                   <div className="box"><h3>📅 দিন অনুযায়ী বিক্রি (৭ দিন)</h3>
-                    {[...Array(7)].map((_, i) => { const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10); const os = data.orders.filter((o) => o.date === d && o.status !== 'cancelled'); return <p key={d}>{new Date(d).toLocaleDateString('bn-BD')} — {bnNum(os.length)} অর্ডার — <b>{tk(os.reduce((s, o) => s + total(o), 0))}</b></p> })}
+                    {[...Array(7)].map((_, i) => { const d = new Date(Date.now() - i * 86400000).toLocaleDateString('en-CA', { timeZone: 'Asia/Dhaka' }); const os = data.orders.filter((o) => o.date === d && o.status !== 'cancelled'); return <p key={d}>{new Date(d).toLocaleDateString('bn-BD')} — {bnNum(os.length)} অর্ডার — <b>{tk(os.reduce((s, o) => s + total(o), 0))}</b></p> })}
                   </div>
                   <div className="box"><h3>🔥 টপ আইটেম</h3>{topItems.map(([n, q]) => <p key={n}>{n} — <b>{bnNum(q)}টি</b></p>)}</div>
                   <div className="box"><h3>💳 পেমেন্ট মাধ্যম অনুযায়ী বিক্রি</h3>
@@ -742,7 +785,7 @@ export default function App() {
               <input placeholder="খরচের নাম, যেমন দুধ" value={newExpense.title} onChange={(e) => setNewExpense({ ...newExpense, title: e.target.value })} />
               <select value={newExpense.category} onChange={(e) => setNewExpense({ ...newExpense, category: e.target.value })}>{['কাঁচামাল', 'বেতন', 'ভাড়া', 'বিদ্যুৎ', 'অন্যান্য'].map((c) => <option key={c}>{c}</option>)}</select>
               <input type="number" placeholder="টাকা (৳)" value={newExpense.amount} onChange={(e) => setNewExpense({ ...newExpense, amount: e.target.value })} />
-              <button onClick={() => { if (!newExpense.title || !newExpense.amount) return alert('নাম ও টাকা দিন'); upd((d) => { d.expenses.unshift({ id: `ex-${Date.now()}`, ...newExpense, amount: Number(newExpense.amount) }); return d }); setNewExpense({ date: todayStr(), title: '', category: 'অন্যান্য', amount: '' }) }}>➕ খরচ যোগ</button>
+              <button onClick={() => { if (!newExpense.title || !newExpense.amount) return showToast('নাম ও টাকা দিন', 'err'); upd((d) => { d.expenses.unshift({ id: `ex-${Date.now()}`, ...newExpense, amount: Number(newExpense.amount) }); return d }); setNewExpense({ date: todayStr(), title: '', category: 'অন্যান্য', amount: '' }) }}>➕ খরচ যোগ</button>
             </div>
             <p>মোট খরচ: <b>{tk(data.expenses.reduce((s, e) => s + e.amount, 0))}</b></p>
             {data.expenses.map((e) => <div key={e.id} className="box"><b>{e.title}</b> • {e.category} • {e.date} • <b>{tk(e.amount)}</b> <button onClick={() => { if (confirm('মুছবেন?')) upd((d) => { d.expenses = d.expenses.filter((x) => x.id !== e.id); return d }) }}>🗑️</button></div>)}
@@ -771,7 +814,7 @@ export default function App() {
                 </div>
                 {closed
                   ? <p className="note">✅ আজকের হিসাব বন্ধ হয়েছে — {closed.time} • বিক্রি {tk(closed.sales)} • খরচ {tk(closed.expenses)} • নিট {tk(closed.net)} • বন্ধ করেছেন: {closed.closedBy}</p>
-                  : <button onClick={() => { if (!confirm('আজকের হিসাব বন্ধ করবেন?')) return; upd((d) => { d.dayCloses.push({ date: t, sales, expenses: expTotal, net: sales - expTotal, byPayment: PAYMENTS.map((p) => ({ payment: p, total: paidToday.filter((b) => b.payment === p).reduce((s, b) => s + b.total, 0) })), closedBy: actorName(), time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }) }); return d }); alert('আজকের হিসাব বন্ধ হয়েছে।') }}>🌙 দিনের হিসাব বন্ধ করুন</button>}
+                  : <button onClick={() => { if (!confirm('আজকের হিসাব বন্ধ করবেন?')) return; upd((d) => { d.dayCloses.push({ date: t, sales, expenses: expTotal, net: sales - expTotal, byPayment: PAYMENTS.map((p) => ({ payment: p, total: paidToday.filter((b) => b.payment === p).reduce((s, b) => s + b.total, 0) })), closedBy: actorName(), time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }) }); return d }); showToast('আজকের হিসাব বন্ধ হয়েছে।') }}>🌙 দিনের হিসাব বন্ধ করুন</button>}
                 <h3>আগের দিনের হিসাব</h3>
                 {data.dayCloses.filter((c) => c.date !== t).slice().reverse().map((c) => <p key={c.date}>{c.date} — বিক্রি {tk(c.sales)} • খরচ {tk(c.expenses)} • নিট {tk(c.net)}</p>)}
                 {!data.dayCloses.filter((c) => c.date !== t).length && <p>আগের কোনো হিসাব নেই।</p>}
@@ -785,10 +828,10 @@ export default function App() {
             {data.staff.map((s) => <div key={s.id} className="box"><b>{s.name}</b> — {s.role}<br />
               <small>অনুমতি: {(s.perms || defaultPermsForStaff(s)).map((p) => PERM_LABELS[p]).join(', ')}</small>
               {isOwner() && <div className="row">{PERMS.map((p) => <label key={p} className="perm-check"><input type="checkbox" checked={(s.perms || []).includes(p)} onChange={(e) => upd((d) => { const x = d.staff.find((y) => y.id === s.id); if (!x) return d; const cur = new Set(x.perms || []); if (e.target.checked) cur.add(p); else cur.delete(p); x.perms = [...cur]; return d })} /> {PERM_LABELS[p]}</label>)}</div>}
-              {pinFor === s.id ? <span><input type="password" placeholder="PIN দিন" value={pinInput} onChange={(e) => setPinInput(e.target.value)} /> <button onClick={() => { if (pinInput === s.pin) { setActiveStaff(s); setPinFor(null); setPinInput(''); setView('kitchen') } else alert('ভুল PIN') }}>লগইন</button></span> : <button onClick={() => setPinFor(s.id)}>🔑 PIN দিয়ে লগইন</button>}
+              {pinFor === s.id ? <span><input type="password" placeholder="PIN দিন" value={pinInput} onChange={(e) => setPinInput(e.target.value)} /> <button onClick={() => { if (pinInput === s.pin) { setActiveStaff(s); setPinFor(null); setPinInput(''); setView('kitchen') } else showToast('ভুল PIN', 'err') }}>লগইন</button></span> : <button onClick={() => setPinFor(s.id)}>🔑 PIN দিয়ে লগইন</button>}
               {isOwner() && <button onClick={() => { if (confirm(`"${s.name}" মুছবেন?`)) upd((d) => { d.staff = d.staff.filter((x) => x.id !== s.id); return d }) }}>🗑️ মুছুন</button>}
             </div>)}
-            <div className="menu-form"><input placeholder="নতুন স্টাফের নাম" value={newStaff.name} onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })} /><input placeholder="ভূমিকা, যেমন চা-মেকার" value={newStaff.role} onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })} /><input placeholder="PIN" value={newStaff.pin} onChange={(e) => setNewStaff({ ...newStaff, pin: e.target.value })} /><select value={newStaff.station} onChange={(e) => setNewStaff({ ...newStaff, station: e.target.value })}><option value="All">All</option>{STATIONS.map((s) => <option key={s}>{s}</option>)}</select><button onClick={() => { if (!newStaff.name || !newStaff.pin) return alert('নাম ও PIN দিন'); const st = { id: `s${Date.now()}`, ...newStaff }; st.perms = defaultPermsForStaff(st); upd((d) => { d.staff.push(st); return d }); setNewStaff({ name: '', role: '', pin: '', station: 'Drinks' }) }}>➕ স্টাফ যোগ</button></div>
+            <div className="menu-form"><input placeholder="নতুন স্টাফের নাম" value={newStaff.name} onChange={(e) => setNewStaff({ ...newStaff, name: e.target.value })} /><input placeholder="ভূমিকা, যেমন চা-মেকার" value={newStaff.role} onChange={(e) => setNewStaff({ ...newStaff, role: e.target.value })} /><input placeholder="PIN" value={newStaff.pin} onChange={(e) => setNewStaff({ ...newStaff, pin: e.target.value })} /><select value={newStaff.station} onChange={(e) => setNewStaff({ ...newStaff, station: e.target.value })}><option value="All">All</option>{STATIONS.map((s) => <option key={s}>{s}</option>)}</select><button onClick={() => { if (!newStaff.name || !newStaff.pin) return showToast('নাম ও PIN দিন', 'err'); const st = { id: `s${Date.now()}`, ...newStaff }; st.perms = defaultPermsForStaff(st); upd((d) => { d.staff.push(st); return d }); setNewStaff({ name: '', role: '', pin: '', station: 'Drinks' }) }}>➕ স্টাফ যোগ</button></div>
           </section>}
 
           {view === 'leave' && <section>
@@ -798,7 +841,7 @@ export default function App() {
               <label>থেকে: <input type="date" value={newLeave.from} onChange={(e) => setNewLeave({ ...newLeave, from: e.target.value })} /></label>
               <label>পর্যন্ত: <input type="date" value={newLeave.to} onChange={(e) => setNewLeave({ ...newLeave, to: e.target.value })} /></label>
               <input placeholder="কারণ" value={newLeave.reason} onChange={(e) => setNewLeave({ ...newLeave, reason: e.target.value })} />
-              <button onClick={() => { if (!newLeave.staffId || !newLeave.reason) return alert('স্টাফ ও কারণ দিন'); upd((d) => { d.leaves.unshift({ id: `lv-${Date.now()}`, ...newLeave, status: 'pending' }); return d }); setNewLeave({ staffId: '', from: todayStr(), to: todayStr(), reason: '' }) }}>➕ ছুটি যোগ</button>
+              <button onClick={() => { if (!newLeave.staffId || !newLeave.reason) return showToast('স্টাফ ও কারণ দিন', 'err'); upd((d) => { d.leaves.unshift({ id: `lv-${Date.now()}`, ...newLeave, status: 'pending' }); return d }); setNewLeave({ staffId: '', from: todayStr(), to: todayStr(), reason: '' }) }}>➕ ছুটি যোগ</button>
             </div>
             {data.leaves.map((l) => { const s = data.staff.find((x) => x.id === l.staffId); return <div key={l.id} className="box"><b>{s ? s.name : 'স্টাফ'}</b> • {l.from} → {l.to} • {l.reason} • স্ট্যাটাস: <b>{l.status === 'pending' ? 'অপেক্ষমাণ' : l.status === 'approved' ? 'অনুমোদিত' : 'বাতিল'}</b>
               {isOwner() && l.status === 'pending' && <div className="row"><button onClick={() => upd((d) => { const x = d.leaves.find((y) => y.id === l.id); if (x) x.status = 'approved'; return d })}>✅ অনুমোদন</button><button onClick={() => upd((d) => { const x = d.leaves.find((y) => y.id === l.id); if (x) x.status = 'rejected'; return d })}>❌ বাতিল</button></div>}
@@ -820,7 +863,7 @@ export default function App() {
             <div className="menu-form">
               <input placeholder="কুপন কোড, যেমন CHA10" value={newCoupon.code} onChange={(e) => setNewCoupon({ ...newCoupon, code: e.target.value.toUpperCase() })} />
               <input type="number" placeholder="ছাড় %" value={newCoupon.pct} onChange={(e) => setNewCoupon({ ...newCoupon, pct: e.target.value })} />
-              <button onClick={() => { if (!newCoupon.code || !newCoupon.pct) return alert('কোড ও ছাড় % দিন'); if (data.coupons.some((c) => c.code === newCoupon.code)) return alert('এই কোড already আছে'); upd((d) => { d.coupons.push({ id: `cp-${Date.now()}`, code: newCoupon.code, pct: Number(newCoupon.pct), active: true }); return d }); setNewCoupon({ code: '', pct: '' }) }}>➕ কুপন তৈরি</button>
+              <button onClick={() => { if (!newCoupon.code || !newCoupon.pct) return showToast('কোড ও ছাড় % দিন', 'err'); if (data.coupons.some((c) => c.code === newCoupon.code)) return showToast('এই কোড already আছে', 'err'); upd((d) => { d.coupons.push({ id: `cp-${Date.now()}`, code: newCoupon.code, pct: Number(newCoupon.pct), active: true }); return d }); setNewCoupon({ code: '', pct: '' }) }}>➕ কুপন তৈরি</button>
             </div>
             {data.coupons.map((c) => <div key={c.id} className="box"><b>{c.code}</b> — {c.pct}% ছাড় • {c.active ? '✅ চালু' : '⛔ বন্ধ'} <button onClick={() => upd((d) => { const x = d.coupons.find((y) => y.id === c.id); if (x) x.active = !x.active; return d })}>{c.active ? 'বন্ধ করুন' : 'চালু করুন'}</button> <button onClick={() => { if (confirm('কুপন মুছবেন?')) upd((d) => { d.coupons = d.coupons.filter((y) => y.id !== c.id); return d }) }}>🗑️</button></div>)}
             {!data.coupons.length && <p>কোনো কুপন নেই — উপরে তৈরি করুন।</p>}
@@ -830,15 +873,16 @@ export default function App() {
             <h2>⚙️ সেটিংস</h2>
             <div className="form">
               <label>দোকানের নাম <input value={settings.shop} onChange={(e) => setSettings({ ...settings, shop: e.target.value })} /></label>
-              <label>ফোন <input value={settings.phone} onChange={(e) => setSettings({ ...settings, phone: e.target.value })} /></label>
+              <label>ফোন (আসল নম্বর এখনো দেওয়া হয়নি — এটি placeholder) <input value={settings.phone} onChange={(e) => setSettings({ ...settings, phone: e.target.value })} /></label>
               <label>ঠিকানা <input value={settings.address} onChange={(e) => setSettings({ ...settings, address: e.target.value })} /></label>
               <label>খোলার সময় <input value={settings.open} onChange={(e) => setSettings({ ...settings, open: e.target.value })} /></label>
               <label>ভ্যাট % <input type="number" min="0" value={settings.vat} onChange={(e) => setSettings({ ...settings, vat: Number(e.target.value) || 0 })} /></label>
               <label>সার্ভিস চার্জ % <input type="number" min="0" value={settings.service} onChange={(e) => setSettings({ ...settings, service: Number(e.target.value) || 0 })} /></label>
               <label>ব্যবসার ধরন <select value={settings.businessType} onChange={(e) => setSettings({ ...settings, businessType: e.target.value })}><option>Tea shop</option><option>Cafe</option><option>Restaurant</option></select></label>
               <label>থিম <select value={settings.theme} onChange={(e) => setSettings({ ...settings, theme: e.target.value })}>{THEMES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
-              <button onClick={() => { upd((d) => { d.settings = settings; return d }); alert('সেটিংস সংরক্ষিত হয়েছে') }}>💾 সংরক্ষণ করুন</button>
+              <button onClick={() => { upd((d) => { d.settings = settings; return d }); showToast('সেটিংস সংরক্ষিত হয়েছে') }}>💾 সংরক্ষণ করুন</button>
             </div>
+            {!realPhone(settings.phone) && <p className="auth-err">⚠️ ফোন নম্বরটি এখনো placeholder (01900-000000) — আসল নম্বর বসান। placeholder নম্বর বিল বা QR-এ ছাপা হয় না।</p>}
             <p className="note">📱 সিঙ্ক নোট: সব ডেটা এই ডিভাইসের ব্রাউজারের localStorage-এ থাকে (key: dpcw-v1)। অন্য ফোন/কম্পিউটারে একই ডেটা দেখতে শেয়ার্ড ডেটাবেস + ব্যাকএন্ড লাগবে — এই ভার্সনে সেটা নেই।</p>
           </section>}
 
@@ -855,7 +899,7 @@ export default function App() {
           </section>}
           </>)}
         </main>
-        <footer>© {data.settings.shop} • Vercel-এ ফ্রি হোস্ট করা যায় • ডেটা এই ব্রাউজারে সংরক্ষিত থাকে</footer>
+        <footer>© {new Date().getFullYear()} {data.settings.shop} • {data.settings.address} • {VERSION} • ডেটা এই ব্রাউজারে সংরক্ষিত থাকে</footer>
       </div>
     </div>
   )
