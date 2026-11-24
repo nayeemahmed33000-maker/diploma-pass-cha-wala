@@ -72,6 +72,14 @@ footer{text-align:center;color:#888;padding:18px;font-size:13px}
 .low-stock{color:#c62828;font-weight:700}
 .perm-check{display:inline-flex;gap:4px;align-items:center;background:var(--cream);border:1px solid #e8d9b0;border-radius:16px;padding:4px 8px;font-size:13px}
 .review-form{margin-top:10px;border-top:1px dashed var(--gold);padding-top:10px}
+/* --- Menu scan (client-side OCR) --- */
+.file-btn{border:1px solid var(--gold);background:#fff;color:var(--brown);padding:8px 12px;border-radius:20px;cursor:pointer;font-weight:600}
+.scan-preview img{max-width:100%;max-height:320px;border:1px solid #e8d9b0;border-radius:12px;margin-top:10px}
+.scan-progress{margin-top:10px}
+.scan-bar{height:10px;background:var(--gold);border-radius:6px;transition:width .3s}
+.scan-result{background:var(--cream)}
+.scan-result ul{margin:8px 0;padding-left:20px}
+
 /* --- Themes (settings) --- */
 .theme-green{--brown:#14532d;--gold:#16a34a;--cream:#f0fdf4;--bg:#f0fdf4}
 .theme-teal{--brown:#134e4a;--gold:#14b8a6;--cream:#f0fdfa;--bg:#f0fdfa}
