@@ -1,12 +1,15 @@
 # দ্য ডিপ্লোমা পাস চা-ওয়ালা — Cafe Management System
 
-**Version: v1.6.1 — Bponi Parity.** The version string is shown in the sidebar footer, the app footer, the customer footer, and the login screen footer, so a fresh live check can prove the new version reached the device.
+**Version: v1.6.2 — Bponi Parity.** The version string is shown in the sidebar footer, the app footer, the customer footer, and the login screen footer, so a fresh live check can prove the new version reached the device.
+
+## No plan at all (v1.6.2)
+- Sir's order: this system has **no plan, no trial, no subscription, no monthly price**. The landing pricing card (৳2,000/month, yearly ৳20,000), the Plan page and sidebar item, the `plan` field in saved data, and the per-branch plan price note are all removed. Old saved data that still has a `plan` key is ignored on load (no crash).
 
 ## KDS wait-time fix (v1.6.1)
 - Orders saved before v1.6.0 had no `createdAt`, so the KDS wait time showed 0 min and oldest-first sorting failed. On load, `createdAt` is now backfilled from the order's Bengali time string on its date in Dhaka time (+06:00); seed demo orders derive their time strings from their `createdAt` values.
 
 ## Landing page (before login)
-The app now opens on a landing page, not straight on the login form: hero with the logo, name, tagline "চা, গল্প, আড্ডা", address "1640 Narsingdi, Bangladesh", opening time, feature cards (Menu Scan, QR Menu, Orders, Kitchen, POS + Bill, Reports), pricing note (৳2,000/month, yearly ৳20,000), and three buttons — Login, Sign Up, and Customer Menu (opens the QR customer menu with no login). Login / Sign Up is the auth screen reached from the landing page; logging out returns to the landing page.
+The app now opens on a landing page, not straight on the login form: hero with the logo, name, tagline "চা, গল্প, আড্ডা", address "1640 Narsingdi, Bangladesh", opening time, feature cards (Menu Scan, QR Menu, Orders, Kitchen, POS + Bill, Reports), and three buttons — Login, Sign Up, and Customer Menu (opens the QR customer menu with no login). Login / Sign Up is the auth screen reached from the landing page; logging out returns to the landing page.
 
 ## Professional polish (v1.5.1)
 - Address migration (v1.5.1): older saved shop data that still says Narayanganj is migrated on load to "1640 Narsingdi, Bangladesh".
@@ -50,9 +53,8 @@ The app opens on the landing page; Login / Sign Up is the auth screen reached fr
 19. Catering — add/list (date, customer, guests, items, total)
 20. Reviews — customer reviews from the order tracker (name, 1–5 stars, comment); Reviews page lists them, Owner can reply
 21. Settings — shop name, phone, address, opening time, VAT %, service charge %, business type (Tea shop / Cafe / Restaurant), themes (Brown/Gold default, Green, Teal)
-22. Plan — Trial / Monthly, ৳2,000/month (yearly ৳20,000), features list, manual-payment note
-23. Sidebar navigation — fixed shop logo + name on top, Dashboard as a direct top-level item, collapsible groups (মেনু ও টেবিল / বিক্রি / কাস্টমার / টাকা ও হিসাব / পরিচালনা / সেটিংস); on mobile it becomes a horizontal scroll nav
-24. Menu Scan — photo → OCR → auto-add (see "Menu Scan" section below)
+22. Sidebar navigation — fixed shop logo + name on top, Dashboard as a direct top-level item, collapsible groups (মেনু ও টেবিল / বিক্রি / কাস্টমার / টাকা ও হিসাব / পরিচালনা / সেটিংস); on mobile it becomes a horizontal scroll nav
+23. Menu Scan — photo → OCR → auto-add (see "Menu Scan" section below)
 
 ## Data — important limit
 All data is stored in the browser's `localStorage` (key `dpcw-v1`; POS draft in `dpcw-pos-draft-v1`), so it works on Vercel free static hosting with no database.
@@ -67,7 +69,7 @@ All data is stored in the browser's `localStorage` (key `dpcw-v1`; POS draft in 
 
 ## Honest limits (backend-only, not faked as working)
 - **Multi-device sync** — data is localStorage-only on this device (see the note on Settings / Dashboard). Real sync needs a shared database/backend.
-- **Payments** — bKash / Nagad / Card are recorded manually on the bill only; there is no payment-gateway integration. Plan payment is manual as well.
+- **Payments** — bKash / Nagad / Card are recorded manually on the bill only; there is no payment-gateway integration.
 - **Still needed from Sir:** the real shop phone number. Settings currently holds the placeholder `01900-000000`, which is never printed on bills or QR cards.
 
 ## Run locally
@@ -82,7 +84,7 @@ Option A — Vercel dashboard (easiest):
 1. Push this folder to a GitHub repo.
 2. Go to vercel.com → Add New → Project → Import that repo.
 3. Framework is auto-detected as Vite. Build command `npm run build`, output `dist` (already in `vercel.json`).
-4. Deploy. You get a `*.vercel.app` link. No card is needed for the Hobby plan.
+4. Deploy. You get a `*.vercel.app` link. No card is needed to deploy on Vercel's free tier.
 
 Option B — Vercel CLI:
 ```bash
