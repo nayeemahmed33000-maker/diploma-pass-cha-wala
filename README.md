@@ -1,6 +1,6 @@
 # দ্য ডিপ্লোমা পাস চা-ওয়ালা — Cafe Management System
 
-**Version: v1.6.2 — Bponi Parity.** The version string is shown in the sidebar footer, the app footer, the customer footer, and the login screen footer, so a fresh live check can prove the new version reached the device.
+**Version: v1.6.3 — Bponi Parity.** Sidebar now exactly matches the screenshot's menu (CafePilot SIDEBAR groups/order/labels); new working pages: টাকা ও হিসাব (money overview) and সব টুল (all tools list). The version string is shown in the sidebar footer, the app footer, the customer footer, and the login screen footer, so a fresh live check can prove the new version reached the device.
 
 ## No plan at all (v1.6.2)
 - Sir's order: this system has **no plan, no trial, no subscription, no monthly price**. The landing pricing card (৳2,000/month, yearly ৳20,000), the Plan page and sidebar item, the `plan` field in saved data, and the per-branch plan price note are all removed. Old saved data that still has a `plan` key is ignored on load (no crash).
